@@ -35,7 +35,7 @@ def process_stream_line(line):
         return None
 
 def make_chat_request(prompt):
-    base_url = "https://www.familymart.unieai.com:8088"
+    base_url = "http://127.0.0.1:8000"
     api_url = f"{base_url}/api/chat/completions"
     api_key = "sk-36944186ace74c55bdd98a70229dfc83"
 
@@ -45,7 +45,7 @@ def make_chat_request(prompt):
     }
 
     payload = {
-        "model": "MyCustomAgent",
+        "model": "gpt-3.5-trobo",
         "stream": True,
         "messages": [
             {
