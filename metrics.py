@@ -260,7 +260,7 @@ class APIThroughputMonitor:
             return None
 
     def make_request(self, session_id):
-        logger.debug("SESSION ID", session_id)
+        logger.debug(f"SESSION ID {session_id}")
         global count_id
         headers = {
             "Content-Type": "application/json",
