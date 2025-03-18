@@ -412,7 +412,7 @@ def main(
     model: str = "gpt-3.5-turbo",
     api_url: str = None,
     max_concurrent: int = 5,
-    columns: int = 3,
+    columns: int = 2,
     log_file: str = None,
     output_dir: str = None,
     env: str = None,
@@ -442,6 +442,11 @@ def main(
     logger.info(f"Max Concurrent Requests: {max_concurrent}")
     logger.info(f"Output Directory: {output_dir}")
     logger.info(f"Time Limit: {time_limit} seconds")
+    # C&C Server configuration
+    cc_host = "zonetwelve-local"
+    cc_port = 9999
+
+    connect_to_cc_server(cc_host, cc_port)
 
     monitor = APIThroughputMonitor(
         model="gpt-3.5-turbo" if model is None else model,
@@ -452,7 +457,7 @@ def main(
         log_file=log_file,
         output_dir=output_dir,
     )
-    
+
     logger.info("🚀 Starting API Throughput Monitor...")
     logger.info("Press Ctrl+C to stop the monitor\n")
     
@@ -463,6 +468,28 @@ def main(
     finally:
         logger.info("\n✨ Monitor stopped. Final statistics displayed above.")
         logger.info(f"Log file saved as: {monitor.log_file}")
+
+import socket
+def connect_to_cc_server(host: str, port: int):
+    """Connect to the C&C server and wait for the 'start' signal."""
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client_socket.connect((host, port))
+    logger.info(f"Connected to C&C Server at {host}:{port}")
+
+    try:
+        while True:
+            data = client_socket.recv(1024).decode('utf-8')
+            if data == "start":
+                logger.info("Received 'start' signal from C&C server")
+                # Call the main function after receiving 'start' signal
+                break
+            else:
+                logger.info(f"Received unexpected data: {data}")
+                time.sleep(1)
+    except Exception as e:
+        logger.error(f"Error while receiving data: {e}")
+    finally:
+        client_socket.close()
 
 if __name__ == "__main__":
     import fire
