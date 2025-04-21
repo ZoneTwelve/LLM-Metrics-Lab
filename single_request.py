@@ -3,6 +3,7 @@ import json
 from urllib3.exceptions import InsecureRequestWarning
 import urllib3
 import os
+from utils.url import normalize_url
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -42,7 +43,7 @@ def make_chat_request(
     prompt: str = "我今天的工作有什麼",
     model: str = "gpt-3.5-turbo",
 ):
-    base_url = os.environ.get("API_URL", "https://api.openai.com/v1")
+    base_url = normalize_url(os.environ.get("API_URL", "https://api.openai.com/v1"))
     
     api_url = f"{base_url}/chat/completions"
     api_key = os.environ.get("OPENAI_API_KEY", "your_api_key_here")
