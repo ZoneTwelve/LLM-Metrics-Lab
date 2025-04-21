@@ -215,6 +215,7 @@ class APIThroughputMonitor:
                 line = line.decode('utf-8')
 
             # Remove the "data: " prefix if it exists
+            logger.debug(f"Line: {line}")
             if line.startswith('data: '):
                 line = line[6:]
 
