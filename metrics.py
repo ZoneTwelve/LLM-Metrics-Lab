@@ -246,6 +246,7 @@ class APIThroughputMonitor:
 
             # Remove the "data: " prefix if it exists
             data_key = 'data: '
+            logger.debug(f"Line: {line}")
             if line.startswith(data_key):
                 line = line[len(data_key):]
 
@@ -272,10 +273,11 @@ class APIThroughputMonitor:
             "Authorization": f"Bearer {self.api_key}"
         }
         messages = questions[session_id % len(questions)]
+        logger.debug(f"Messages: {messages}")
         payload = {
             "model": self.model,
             "stream": True,
-            "messages": messages,
+            "messages": messages
         }
         count_id += 1
 
@@ -297,7 +299,7 @@ class APIThroughputMonitor:
 
             # Make request with SSL verification disabled
             response = requests.post(
-                self.api_url,
+                f"{self.api_url}/chat/completions",
                 headers=headers,
                 json=payload,
                 stream=True,
@@ -404,7 +406,7 @@ def load_dataset_as_questions(dataset_name: str, key: Template | Conversation = 
             conv = [
                 {"role": "user", "content": key.format(**row)},
             ]
-            ret.append(row)
+            ret.append(conv)
     elif isinstance(key, Conversation):
         ret = [row[key] for row in dataset]
     else:
