@@ -21,6 +21,11 @@ from datasets import load_dataset
 
 import logging
 
+class Template(str):
+    pass
+class Conversation(str):
+    pass
+
 load_dotenv()
 
 # Configure logging level from environment variable
@@ -266,13 +271,11 @@ class APIThroughputMonitor:
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}"
         }
-        
+        messages = questions[session_id % len(questions)]
         payload = {
             "model": self.model,
             "stream": True,
-            "messages": [
-                {"role": "user", "content": questions[count_id % len(questions)]}
-            ]
+            "messages": messages,
         }
         count_id += 1
 
@@ -391,10 +394,22 @@ class APIThroughputMonitor:
                     
                     time.sleep(0.1)
 
-def load_dataset_as_questions(dataset_name: str, template: str):
+def load_dataset_as_questions(dataset_name: str, key: Template | Conversation = None):
     # I think user might want to implement a custom data loader
     dataset = load_dataset(dataset_name)['train']
-    return [template.format(**data) for data in dataset]
+    ret = []
+    if isinstance(key, Template):
+        ret = []
+        for row in dataset:
+            conv = [
+                {"role": "user", "content": key.format(**row)},
+            ]
+            ret.append(row)
+    elif isinstance(key, Conversation):
+        ret = [row[key] for row in dataset]
+    else:
+        ret = None
+    return ret
 
 def main(
     model: str = "gpt-3.5-turbo",
@@ -405,21 +420,29 @@ def main(
     output_dir: str = None,
     env: str = None,
     dataset: str = "tatsu-lab/alpaca",
-    template: str = "{input}\nQuestion: {instruction}",
+    template: Template = None, # template, e.g. "{input}\nQuestion: {instruction}",
+    conversation: Conversation = None, # conversation, e.g. "conversation"
     time_limit: int = 120
 ):
     global questions
     if env is not None:
         load_dotenv(env)
 
-    questions = load_dataset_as_questions(dataset, template)
+    # questions = load_dataset_as_questions(dataset, template)
+    
+    if template is not None:
+        questions = load_dataset_as_questions(dataset, Template(template))
+    elif conversation is not None:
+        questions = load_dataset_as_questions(dataset, Conversation(conversation))
+    else:
+        raise ValueError("Either template or conversation must be provided")
 
     # Set default values
     if output_dir is not None and not os.path.exists(output_dir):
         os.makedirs(output_dir)
     api_url = api_url if api_url is not None else os.environ.get('API_URL')
-    api_key = os.environ.get('API_KEY')
-    model = model if model is not None else os.environ.get('MODEL')
+    api_key = os.environ.get('OPENAI_API_KEY')
+    model = os.environ.get('MODEL', model)
 
     log_file = log_file if log_file is not None else f"{output_dir}/api_monitor.jsonl" if output_dir is not None else "api_monitor.jsonl"
 
