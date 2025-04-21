@@ -16,7 +16,7 @@ import urllib3
 import os
 from dotenv import load_dotenv
 import uuid
-
+from utils.url import normalize_url
 from datasets import load_dataset
 
 import logging
@@ -443,7 +443,7 @@ def main(
     # Set default values
     if output_dir is not None and not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    api_url = api_url if api_url is not None else os.environ.get('API_URL')
+    api_url = normalize_url(api_url if api_url is not None else os.environ.get('API_URL'))
     api_key = os.environ.get('OPENAI_API_KEY')
     model = os.environ.get('MODEL', model)
 
