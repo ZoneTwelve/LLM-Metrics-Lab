@@ -2,6 +2,11 @@ import requests
 import json
 from urllib3.exceptions import InsecureRequestWarning
 import urllib3
+import os
+from utils.url import normalize_url
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Suppress only the single InsecureRequestWarning
 urllib3.disable_warnings(InsecureRequestWarning)
@@ -34,10 +39,18 @@ def process_stream_line(line):
         print(f"Error processing line: {str(e)}")
         return None
 
-def make_chat_request(prompt):
-    base_url = "http://127.0.0.1:8000"
-    api_url = f"{base_url}/api/chat/completions"
-    api_key = "sk-36944186ace74c55bdd98a70229dfc83"
+def make_chat_request(
+    prompt: str = "我今天的工作有什麼",
+    model: str = "gpt-3.5-turbo",
+):
+    base_url = normalize_url(os.environ.get("API_URL", "https://api.openai.com/v1"))
+    
+    api_url = f"{base_url}/chat/completions"
+    api_key = os.environ.get("OPENAI_API_KEY", "your_api_key_here")
+    if not api_key:
+        raise ValueError("API_KEY environment variable not set")
+
+    model = os.environ.get("MODEL", model)
 
     headers = {
         "Content-Type": "application/json",
@@ -45,7 +58,7 @@ def make_chat_request(prompt):
     }
 
     payload = {
-        "model": "gpt-3.5-trobo",
+        "model": model,
         "stream": True,
         "messages": [
             {
@@ -94,8 +107,19 @@ def make_chat_request(prompt):
 
     return None
 
-if __name__ == "__main__":
+def main(
+    prompt: str = "我今天的工作有什麼",
+    model: str = "gpt-3.5-turbo",
+
+):
     # Example usage
-    result = make_chat_request("我今天的工作有什麼")
+    result = make_chat_request(
+        prompt=prompt,
+        model=model,
+    )
     if result is not None:
         print(f"Request completed successfully with {result} characters")
+
+if __name__ == "__main__":
+    import fire
+    fire.Fire(main)
