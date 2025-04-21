@@ -184,6 +184,13 @@ class APIThroughputMonitor:
 
             tokens_latency = [ self.sessions[id]['tokens_latency'] for id in self.sessions ]
             tokens_amount = [ self.sessions[id]['tokens_amount'] for id in self.sessions ]
+            ftls = []
+            try:
+                ftls = [ self.sessions[id]['first_token_latency'] for id in self.sessions ]
+                logger.debug(ftls)
+            except KeyError as e:
+                logger.error(e)
+                ftls = []
             for id in self.sessions:
                 self.sessions[id]['tokens_latency'] = []
                 self.sessions[id]['tokens_amount'] = []
@@ -200,6 +207,7 @@ class APIThroughputMonitor:
                 "failed_requests": self.failed_requests,
                 "tokens_latency": tokens_latency,
                 "tokens_amount": tokens_amount,
+                "first_token_latencies": ftls,
             }
             
             with open(self.log_file, 'a') as f:
@@ -267,7 +275,7 @@ class APIThroughputMonitor:
             return None
 
     def make_request(self, session_id):
-        logger.debug(f"SESSION ID {session_id}")
+        logger.debug(f"Making request for session {session_id}")
         global count_id
         headers = {
             "Content-Type": "application/json",
@@ -293,6 +301,7 @@ class APIThroughputMonitor:
                     "chunks_received": 0,
                     "tokens_latency": [],
                     "tokens_amount": [],
+                    "first_token_latency": -1,
                 }
 
             start_time = time.time()
@@ -323,11 +332,14 @@ class APIThroughputMonitor:
                         break
                     content = data["data"]["choices"][0]["delta"]["content"]
                     with self.lock:
+                        latency = round(time.time() - next_token_time, 5)
                         self.sessions[session_id]["status"] = "Processing"
                         self.sessions[session_id]["chunks_received"] += 1
                         self.sessions[session_id]["total_chars"] += len(content)
                         self.sessions[session_id]["tokens_amount"].append(len(content))
-                        self.sessions[session_id]["tokens_latency"].append(round(time.time() - next_token_time, 5))
+                        self.sessions[session_id]["tokens_latency"].append(latency)
+                        if self.sessions[session_id]["first_token_latency"] == -1:
+                            self.sessions[session_id]["first_token_latency"] = latency
                         next_token_time = time.time()
 
             output_record.close()
