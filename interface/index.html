@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Throughput Monitor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            padding-bottom: 60px;
+        }
+        .card {
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .card-header {
+            background-color: #f1f3f5;
+            border-bottom: 1px solid #dee2e6;
+            font-weight: 600;
+        }
+        .btn-primary {
+            background-color: #0d6efd;
+            border-color: #0d6efd;
+        }
+        .btn-primary:hover {
+            background-color: #0b5ed7;
+            border-color: #0a58ca;
+        }
+        .form-control:focus {
+            border-color: #86b7fe;
+            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+        }
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+        .status-running {
+            background-color: #28a745;
+        }
+        .status-stopped {
+            background-color: #dc3545;
+        }
+        .session-card {
+            border-radius: 8px;
+            border-left: 4px solid #0d6efd;
+            transition: transform 0.2s, box-shadow 0.2s;
+            height: 100%;
+        }
+        .session-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+        }
+        .session-card.status-starting {
+            border-left-color: #ffc107;
+        }
+        .session-card.status-processing {
+            border-left-color: #0d6efd;
+        }
+        .session-card.status-completed {
+            border-left-color: #198754;
+        }
+        .session-card.status-failed {
+            border-left-color: #dc3545;
+        }
+        .session-header {
+            background-color: #f8f9fa;
+            border-radius: 8px 8px 0 0;
+            padding: 10px 15px;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .session-body {
+            padding: 15px;
+        }
+        .session-footer {
+            background-color: #f8f9fa;
+            border-radius: 0 0 8px 8px;
+            padding: 10px 15px;
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+        .session-id {
+            font-family: monospace;
+            font-weight: 600;
+        }
+        .session-status {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .status-starting {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .status-processing {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+        .status-completed {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status-failed {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0;
+        }
+        .metric-label {
+            font-size: 0.9rem;
+            color: #6c757d;
+            margin-bottom: 0;
+        }
+        .session-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1rem;
+        }
+        .session-grid-empty {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 2rem;
+            color: #6c757d;
+        }
+        .monitor-container {
+            height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            background-color: #212529;
+            color: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+            border-bottom: 1px solid #495057;
+            padding-bottom: 5px;
+        }
+        .log-time {
+            color: #6c757d;
+        }
+        .log-info {
+            color: #0d6efd;
+        }
+        .log-success {
+            color: #28a745;
+        }
+        .log-error {
+            color: #dc3545;
+        }
+        .log-warning {
+            color: #ffc107;
+        }
+        .nav-tabs .nav-link {
+            color: #495057;
+        }
+        .nav-tabs .nav-link.active {
+            color: #0d6efd;
+            font-weight: 600;
+        }
+        .config-value {
+            font-family: monospace;
+            background-color: #e9ecef;
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+        .help-icon {
+            cursor: pointer;
+            color: #6c757d;
+        }
+        .tooltip-inner {
+            max-width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-speedometer2 me-2"></i>
+                API Throughput Monitor
+            </a>
+            <div class="ms-auto d-flex align-items-center">
+                <div class="me-3">
+                    <span id="status-indicator" class="status-indicator status-stopped"></span>
+                    <span id="status-text">Stopped</span>
+                </div>
+                <button id="start-btn" class="btn btn-primary btn-sm">
+                    <i class="bi bi-play-fill"></i> Start
+                </button>
+                <button id="stop-btn" class="btn btn-danger btn-sm ms-2" disabled>
+                    <i class="bi bi-stop-fill"></i> Stop
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-gear-fill me-2"></i>Configuration
+                    </div>
+                    <div class="card-body">
+                        <ul class="nav nav-tabs" id="configTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="basic-tab" data-bs-toggle="tab" data-bs-target="#basic" type="button" role="tab" aria-controls="basic" aria-selected="true">Basic</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="advanced-tab" data-bs-toggle="tab" data-bs-target="#advanced" type="button" role="tab" aria-controls="advanced" aria-selected="false">Advanced</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="dataset-tab" data-bs-toggle="tab" data-bs-target="#dataset" type="button" role="tab" aria-controls="dataset" aria-selected="false">Dataset</button>
+                            </li>
+                        </ul>
+                        <div class="tab-content p-3" id="configTabsContent">
+                            <div class="tab-pane fade show active" id="basic" role="tabpanel" aria-labelledby="basic-tab">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label for="api-url" class="form-label">API URL <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="The base URL of the API endpoint to test"></i></label>
+                                        <input type="text" class="form-control" id="api-url" placeholder="https://api.example.com/v1">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="api-key" class="form-label">API Key <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="Your API authentication key"></i></label>
+                                        <input type="password" class="form-control" id="api-key" placeholder="sk-...">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="model" class="form-label">Model <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="The model to use for API requests"></i></label>
+                                        <input type="text" class="form-control" id="model" value="gpt-3.5-turbo">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="time-limit" class="form-label">Time Limit (seconds) <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="Duration in seconds to run the monitor"></i></label>
+                                        <input type="number" class="form-control" id="time-limit" value="120" min="10" max="3600">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="tab-pane fade" id="advanced" role="tabpanel" aria-labelledby="advanced-tab">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label for="max-concurrent" class="form-label">Max Concurrent Requests <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="Maximum number of concurrent API requests"></i></label>
+                                        <input type="number" class="form-control" id="max-concurrent" value="5" min="1" max="100">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="columns" class="form-label">Display Columns <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="Number of columns to display in the status table"></i></label>
+                                        <input type="number" class="form-control" id="columns" value="3" min="1" max="10">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="log-file" class="form-label">Log File <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="Path to the log file for monitoring data"></i></label>
+                                        <input type="text" class="form-control" id="log-file" value="api_monitor.jsonl">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="output-dir" class="form-label">Output Directory <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="Directory to save request/response files"></i></label>
+                                        <input type="text" class="form-control" id="output-dir" placeholder="output">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="console-log-level" class="form-label">Console Log Level <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="Logging level for console output"></i></label>
+                                        <select class="form-select" id="console-log-level">
+                                            <option value="debug">Debug</option>
+                                            <option value="info" selected>Info</option>
+                                            <option value="warning">Warning</option>
+                                            <option value="error">Error</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="file-log-level" class="form-label">File Log Level <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="Logging level for file output"></i></label>
+                                        <select class="form-select" id="file-log-level">
+                                            <option value="debug">Debug</option>
+                                            <option value="info">Info</option>
+                                            <option value="warning" selected>Warning</option>
+                                            <option value="error">Error</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="tab-pane fade" id="dataset" role="tabpanel" aria-labelledby="dataset-tab">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label for="dataset-name" class="form-label">Dataset Name <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="Name of the dataset to load from Hugging Face"></i></label>
+                                        <input type="text" class="form-control" id="dataset-name" value="tatsu-lab/alpaca">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="template-type" class="form-label">Input Format <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="Choose how to format the input data"></i></label>
+                                        <select class="form-select" id="template-type">
+                                            <option value="template" selected>Template</option>
+                                            <option value="conversation">Conversation</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12" id="template-container">
+                                        <label for="template" class="form-label">Template <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="Template string with placeholders for dataset fields"></i></label>
+                                        <input type="text" class="form-control" id="template" value="{input}\nQuestion: {instruction}">
+                                    </div>
+                                    <div class="col-12 d-none" id="conversation-container">
+                                        <label for="conversation" class="form-label">Conversation Key <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="Key in the dataset that contains conversation data"></i></label>
+                                        <input type="text" class="form-control" id="conversation" value="conversation">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="bi bi-speedometer2 me-2"></i>Monitoring Dashboard
+                        </div>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="btn btn-outline-secondary" id="refresh-btn">
+                                <i class="bi bi-arrow-clockwise"></i> Refresh
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" id="clear-btn">
+                                <i class="bi bi-trash"></i> Clear
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="row mb-4">
+                            <div class="col-md-3 mb-3">
+                                <div class="card h-100">
+                                    <div class="card-body text-center">
+                                        <h6 class="card-title text-muted">Active Sessions</h6>
+                                        <h2 id="active-sessions" class="mb-0">0</h2>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="card h-100">
+                                    <div class="card-body text-center">
+                                        <h6 class="card-title text-muted">Total Requests</h6>
+                                        <h2 id="total-requests" class="mb-0">0</h2>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="card h-100">
+                                    <div class="card-body text-center">
+                                        <h6 class="card-title text-muted">Success Rate</h6>
+                                        <h2 id="success-rate" class="mb-0">0%</h2>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="card h-100">
+                                    <div class="card-body text-center">
+                                        <h6 class="card-title text-muted">Chars Per Second</h6>
+                                        <h2 id="chars-per-second" class="mb-0">0</h2>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="session-grid" id="sessions-grid">
+                            <div class="session-grid-empty">
+                                <i class="bi bi-info-circle me-2"></i>No sessions yet
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-terminal-fill me-2"></i>Log Output
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="log-output" class="monitor-container">
+                            <div class="log-entry">
+                                <span class="log-time">[2025-05-13 10:00:00]</span> 
+                                <span class="log-info">API Throughput Monitor initialized. Ready to start.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for configuration summary -->
+    <div class="modal fade" id="configModal" tabindex="-1" aria-labelledby="configModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="configModalLabel">Configuration Summary</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <strong>API URL:</strong> <span id="summary-api-url" class="config-value"></span>
+                    </div>
+                    <div class="mb-3">
+                        <strong>Model:</strong> <span id="summary-model" class="config-value"></span>
+                    </div>
+                    <div class="mb-3">
+                        <strong>Time Limit:</strong> <span id="summary-time-limit" class="config-value"></span> seconds
+                    </div>
+                    <div class="mb-3">
+                        <strong>Max Concurrent Requests:</strong> <span id="summary-max-concurrent" class="config-value"></span>
+                    </div>
+                    <div class="mb-3">
+                        <strong>Dataset:</strong> <span id="summary-dataset" class="config-value"></span>
+                    </div>
+                    <div class="mb-3">
+                        <strong>Template:</strong> <span id="summary-template" class="config-value"></span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="confirm-start">Start Monitoring</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Initialize tooltips
+        document.addEventListener('DOMContentLoaded', function() {
+            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.map(function(tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+
+            // Toggle template/conversation fields based on selection
+            document.getElementById('template-type').addEventListener('change', function() {
+                const templateContainer = document.getElementById('template-container');
+                const conversationContainer = document.getElementById('conversation-container');
+                
+                if (this.value === 'template') {
+                    templateContainer.classList.remove('d-none');
+                    conversationContainer.classList.add('d-none');
+                } else {
+                    templateContainer.classList.add('d-none');
+                    conversationContainer.classList.remove('d-none');
+                }
+            });
+
+            // Start button click handler
+            document.getElementById('start-btn').addEventListener('click', function() {
+                const configModal = new bootstrap.Modal(document.getElementById('configModal'));
+                
+                // Populate summary fields
+                document.getElementById('summary-api-url').textContent = document.getElementById('api-url').value || 'Not specified';
+                document.getElementById('summary-model').textContent = document.getElementById('model').value || 'Not specified';
+                document.getElementById('summary-time-limit').textContent = document.getElementById('time-limit').value;
+                document.getElementById('summary-max-concurrent').textContent = document.getElementById('max-concurrent').value;
+                document.getElementById('summary-dataset').textContent = document.getElementById('dataset-name').value;
+                
+                const templateType = document.getElementById('template-type').value;
+                if (templateType === 'template') {
+                    document.getElementById('summary-template').textContent = document.getElementById('template').value;
+                } else {
+                    document.getElementById('summary-template').textContent = document.getElementById('conversation').value;
+                }
+                
+                configModal.show();
+            });
+
+            // Confirm start button click handler
+            document.getElementById('confirm-start').addEventListener('click', function() {
+                const configModal = bootstrap.Modal.getInstance(document.getElementById('configModal'));
+                configModal.hide();
+                
+                // Update UI to show running state
+                document.getElementById('status-indicator').className = 'status-indicator status-running';
+                document.getElementById('status-text').textContent = 'Running';
+                document.getElementById('start-btn').disabled = true;
+                document.getElementById('stop-btn').disabled = false;
+                
+                // Add log entry
+                addLogEntry('info', 'Starting API Throughput Monitor...');
+                
+                // In a real implementation, this would start the monitor
+                // For this demo, we'll simulate some activity
+                simulateMonitor();
+            });
+
+            // Stop button click handler
+            document.getElementById('stop-btn').addEventListener('click', function() {
+                // Update UI to show stopped state
+                document.getElementById('status-indicator').className = 'status-indicator status-stopped';
+                document.getElementById('status-text').textContent = 'Stopped';
+                document.getElementById('start-btn').disabled = false;
+                document.getElementById('stop-btn').disabled = true;
+                
+                // Add log entry
+                addLogEntry('info', 'Stopping API Throughput Monitor...');
+                
+                // In a real implementation, this would stop the monitor
+            });
+
+            // Refresh button click handler
+            document.getElementById('refresh-btn').addEventListener('click', function() {
+                // In a real implementation, this would refresh the monitor data
+                addLogEntry('info', 'Refreshing monitor data...');
+            });
+
+            // Clear button click handler
+            document.getElementById('clear-btn').addEventListener('click', function() {
+                document.getElementById('sessions-grid').innerHTML = '<div class="session-grid-empty"><i class="bi bi-info-circle me-2"></i>No sessions yet</div>';
+                document.getElementById('active-sessions').textContent = '0';
+                document.getElementById('total-requests').textContent = '0';
+                document.getElementById('success-rate').textContent = '0%';
+                document.getElementById('chars-per-second').textContent = '0';
+                
+                // In a real implementation, this would clear the monitor data
+                addLogEntry('info', 'Cleared monitor data...');
+            });
+        });
+
+        // Function to add log entries
+        function addLogEntry(level, message) {
+            const logOutput = document.getElementById('log-output');
+            const now = new Date();
+            const timeString = now.toLocaleTimeString();
+            const dateString = now.toLocaleDateString();
+            
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            logEntry.innerHTML = `<span class="log-time">[${dateString} ${timeString}]</span> <span class="log-${level}">${message}</span>`;
+            
+            logOutput.appendChild(logEntry);
+            logOutput.scrollTop = logOutput.scrollHeight;
+        }
+
+        // Simulate monitor activity for demo purposes
+        function simulateMonitor() {
+            // Simulate sessions
+            const sessions = [];
+            const statuses = ['Starting', 'Processing', 'Completed', 'Failed'];
+            const statusClasses = {
+                'Starting': 'status-starting',
+                'Processing': 'status-processing',
+                'Completed': 'status-completed',
+                'Failed': 'status-failed'
+            };
+            
+            // Simulate adding sessions
+            let sessionCount = 0;
+            const addSession = () => {
+                sessionCount++;
+                const sessionId = sessionCount;
+                const status = statuses[Math.floor(Math.random() * statuses.length)];
+                const chars = Math.floor(Math.random() * 1000);
+                const chunks = Math.floor(Math.random() * 20);
+                const responseTime = status === 'Failed' ? 'N/A' : `${(Math.random() * 5).toFixed(2)}s`;
+                
+                sessions.push({
+                    id: sessionId,
+                    status,
+                    responseTime,
+                    chars,
+                    chunks,
+                    statusClass: statusClasses[status]
+                });
+                
+                updateSessionsGrid();
+                updateStats();
+                
+                addLogEntry('info', `Session ${sessionId} ${status.toLowerCase()}. Response time: ${responseTime}, Chars: ${chars}, Chunks: ${chunks}`);
+            };
+            
+            // Simulate session completion
+            const completeSession = () => {
+                if (sessions.length > 0) {
+                    const randomIndex = Math.floor(Math.random() * sessions.length);
+                    const session = sessions[randomIndex];
+                    
+                    if (session.status !== 'Completed' && session.status !== 'Failed') {
+                        const newStatus = Math.random() > 0.2 ? 'Completed' : 'Failed';
+                        session.status = newStatus;
+                        session.statusClass = statusClasses[newStatus];
+                        session.responseTime = newStatus === 'Failed' ? 'N/A' : `${(Math.random() * 5).toFixed(2)}s`;
+                        
+                        updateSessionsGrid();
+                        updateStats();
+                        
+                        addLogEntry('info', `Session ${session.id} ${newStatus.toLowerCase()}. Response time: ${session.responseTime}`);
+                    }
+                }
+            };
+            
+            // Update sessions grid
+            const updateSessionsGrid = () => {
+                const sessionGrid = document.getElementById('sessions-grid');
+                
+                // Clear the grid
+                sessionGrid.innerHTML = '';
+                
+                if (sessions.length === 0) {
+                    sessionGrid.innerHTML = '<div class="session-grid-empty"><i class="bi bi-info-circle me-2"></i>No sessions yet</div>';
+                    return;
+                }
+                
+                // Add each session card to the grid
+                sessions.forEach(session => {
+                    const sessionCard = document.createElement('div');
+                    sessionCard.className = `session-card ${session.statusClass}`;
+                    
+                    sessionCard.innerHTML = `
+                        <div class="session-header">
+                            <span class="session-id">Session ${session.id}</span>
+                            <span class="session-status status-${session.status.toLowerCase()}">${session.status}</span>
+                        </div>
+                        <div class="session-body">
+                            <div class="row mb-2">
+                                <div class="col-6">
+                                    <strong>Response Time:</strong> ${session.responseTime}
+                                </div>
+                                <div class="col-6">
+                                    <strong>Chars:</strong> ${session.chars}
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-12">
+                                    <strong>Chunks:</strong> ${session.chunks}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="session-footer">
+                            <span class="text-muted">Updated ${new Date().toLocaleTimeString()}</span>
+                        </div>
+                    `;
+                    
+                    sessionGrid.appendChild(sessionCard);
+                });
+            };
+            
+            // Update stats
+            const updateStats = () => {
+                const activeSessions = sessions.filter(s => s.status === 'Starting' || s.status === 'Processing').length;
+                const totalRequests = sessions.length;
+                const successfulRequests = sessions.filter(s => s.status === 'Completed').length;
+                const successRate = totalRequests > 0 ? Math.round((successfulRequests / totalRequests) * 100) : 0;
+                const charsPerSecond = Math.floor(Math.random() * 1000);
+                
+                document.getElementById('active-sessions').textContent = activeSessions;
+                document.getElementById('total-requests').textContent = totalRequests;
+                document.getElementById('success-rate').textContent = `${successRate}%`;
+                document.getElementById('chars-per-second').textContent = charsPerSecond;
+            };
+            
+            // Simulate monitor activity
+            const sessionInterval = setInterval(addSession, 2000);
+            const completionInterval = setInterval(completeSession, 3000);
+            
+            // Stop simulation after some time
+            setTimeout(() => {
+                clearInterval(sessionInterval);
+                clearInterval(completionInterval);
+                addLogEntry('info', 'Monitor simulation completed');
+            }, 30000);
+        }
+    </script>
+</body>
+</html>
