@@ -253,7 +253,7 @@
                                 <div class="row g-3">
                                     <div class="col-md-6">
                                         <label for="max-concurrent" class="form-label">Max Concurrent Requests <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="Maximum number of concurrent API requests"></i></label>
-                                        <input type="number" class="form-control" id="max-concurrent" value="5" min="1" max="100">
+                                        <input type="number" class="form-control" id="max-concurrent" value="15" min="1" max="100">
                                     </div>
                                     <div class="col-md-6">
                                         <label for="columns" class="form-label">Display Columns <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="Number of columns to display in the status table"></i></label>
@@ -435,15 +435,9 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        var globalMonitor;
         document.addEventListener('DOMContentLoaded', () => {
             addLogEntry('info', 'Hello world...');
-            let fakeSession = new Session(
-                0,
-                'https://api.example.com/v1',
-                'sk-...',
-                'gpt-3.5-turbo',
-                'Hello world'
-            );
         })
 
         // Function to add log entries
@@ -461,6 +455,70 @@
             logOutput.scrollTop = logOutput.scrollHeight;
         }
 
+        function APIThroughputMonitor(
+            model,
+            api_url,
+            api_key,
+            max_concurrent = 5,
+            time_limit = 10,
+            datasets = "tatsu-lab/alpaca",
+            thread_spawn_rate = 1, // maximum number of threads created per scheduling interval
+            pool_update_interval = 200, // Time interval between each thread pool update
+            
+        ){
+            this.model = model
+            this.api_url = api_url
+            this.api_key = api_key
+            this.max_concurrent = max_concurrent
+            this.time_limit = time_limit
+            this.questions = datasets
+            
+            this.sessions = []
+            this.status = "Starting" // ["Starting", "Processing", "Stop"]
+            this.pool = null
+            this.thread_spawn_rate = thread_spawn_rate
+            this.pool_update_interval = pool_update_interval
+        }
+
+        APIThroughputMonitor.prototype.scheduler = function(){
+            // Create session during run process
+            let active_sessions = this.sessions.filter(v=>{
+                return v.status === "Starting" || v.status === "Processing"
+            })
+            let lack_sessions_create = this.max_concurrent - active_sessions.length;
+            let sessions_create = Math.min(this.thread_spawn_rate, lack_sessions_create)
+            const sessionCard = document.getElementById('sessions-grid')
+            // sessionCard.innerHTML = ""
+
+            for(let i = 0 ; i < sessions_create ; i++){
+                let session_id = this.sessions.length
+                let session = new Session(
+                    session_id,
+                    this.api_url,
+                    this.api_key,
+                    this.model,
+                    "Hello world", // this.questions[session_id % this.questions.length]
+                )
+                session.makeRequest()
+                this.sessions.push(session)
+                sessionCard.append(session.sessionCard.card)
+            }
+        }
+        
+        APIThroughputMonitor.prototype.run = function(duration = 60){
+            // Check scheduler is never been created
+            this.status = "Processing"
+            console.log("Monitor run")
+            if(this.pool === null){
+                // Stop the scheduler
+                clearInterval(this.pool);
+                this.pool = null;
+                // Or stop the this run.
+            }
+            // Create scheduler
+            this.pool = setInterval(()=>this.scheduler(), this.pool_update_interval)
+        }
+
         function Session(
             id,
             api_url,
@@ -468,6 +526,11 @@
             model,
             prompt,
         ){
+            this.id = id
+            this.api_url = api_key
+            this.api_key = api_key
+            this.model = model
+            this.prompt = prompt
             this.sessionId = id;
             this.startTime = new Date();
             this.lastChunkReceviedTime = new Date();
@@ -475,15 +538,15 @@
             this.chunks = 0
             this.latencties = [];
             this.status = 'Starting';
-            this.makeRequest(api_key, api_url, model, prompt);
+            this.sessionCard = this.createCard()
         }
 
-        Session.prototype.makeRequest = function(
-            api_url,
-            api_key,
-            model,
-            prompt,
-        ){
+        Session.prototype.makeRequest = function(){
+            console.log("Start program")
+            let model = this.model
+            let prompt = this.prompt
+            let api_url = this.api_url
+            let api_key = this.api_key
             // make a fake request
             // create a interval and timeout
             let fakeInterval;
@@ -511,6 +574,159 @@
                 self.lastChunkReceviedTime = new Date();
                 addLogEntry('info', `Session ${self.sessionId} is processing... Chunk ${self.chunks}: ${self.chars} chars processed.`);
             }
+        }
+        Session.prototype.update = function(
+            chars,
+            chunks,
+            status,
+        ){
+            // UI Function
+            // lazy method
+            this.sessionCard.chars.innerText = chars
+            this.sessionCard.chunks.innerText = chunks
+        }
+
+        Session.prototype.createCard = function(){
+            const sessionCard = document.createElement('div');
+            sessionCard.className = `session-card ${this.statusClass}`;
+
+            // Session Header
+            const sessionHeader = document.createElement('div');
+            sessionHeader.className = 'session-header';
+
+            const sessionId = document.createElement('span');
+            sessionId.className = 'session-id';
+            sessionId.textContent = `Session ${this.id}`;
+
+            const sessionStatus = document.createElement('span');
+            sessionStatus.className = `session-status status-${this.status.toLowerCase()}`;
+            sessionStatus.textContent = this.status;
+
+            sessionHeader.appendChild(sessionId);
+            sessionHeader.appendChild(sessionStatus);
+
+            // Session Body
+            const sessionBody = document.createElement('div');
+            sessionBody.className = 'session-body';
+
+            // Row 1
+            const row1 = document.createElement('div');
+            row1.className = 'row mb-2';
+
+            const col1 = document.createElement('div');
+            col1.className = 'col-6';
+            const responseTime = document.createElement('strong');
+            responseTime.textContent = 'Response Time:';
+            col1.appendChild(responseTime);
+            col1.append(` xxx`);
+
+            const col2 = document.createElement('div');
+            col2.className = 'col-6';
+            const chars = document.createElement('strong');
+            chars.textContent = 'Chars:';
+            col2.appendChild(chars);
+            col2.append(` ${this.chars}`);
+
+            row1.appendChild(col1);
+            row1.appendChild(col2);
+
+            // Row 2
+            const row2 = document.createElement('div');
+            row2.className = 'row';
+
+            const col3 = document.createElement('div');
+            col3.className = 'col-12';
+            const chunks = document.createElement('strong');
+            chunks.textContent = 'Chunks:';
+            col3.appendChild(chunks);
+            col3.append(` ${this.chunks}`);
+
+            row2.appendChild(col3);
+
+            // Add rows to session body
+            sessionBody.appendChild(row1);
+            sessionBody.appendChild(row2);
+
+            // Session Footer
+            const sessionFooter = document.createElement('div');
+            sessionFooter.className = 'session-footer';
+
+            const footerText = document.createElement('span');
+            footerText.className = 'text-muted';
+            footerText.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+
+            sessionFooter.appendChild(footerText);
+
+            // Assemble card
+            sessionCard.appendChild(sessionHeader);
+            sessionCard.appendChild(sessionBody);
+            sessionCard.appendChild(sessionFooter);
+            return {
+                card: sessionCard,
+                chunks: chunks,
+                chars: chars,
+                // status: status // status is in the 'sessionCard'
+            };
+        }
+        // ------ Interface functions ------
+        // Start button click handler
+        document.getElementById('start-btn').addEventListener('click', function() {
+            const configModal = new bootstrap.Modal(document.getElementById('configModal'));
+            
+            // Populate summary fields
+            document.getElementById('summary-api-url').textContent = document.getElementById('api-url').value || 'https://api.openai.com/v1 (Not specified)';
+            document.getElementById('summary-model').textContent = document.getElementById('model').value || 'Not specified';
+            document.getElementById('summary-time-limit').textContent = document.getElementById('time-limit').value;
+            document.getElementById('summary-max-concurrent').textContent = document.getElementById('max-concurrent').value;
+            document.getElementById('summary-dataset').textContent = document.getElementById('dataset-name').value;
+            
+            const templateType = document.getElementById('template-type').value;
+            if (templateType === 'template') {
+                document.getElementById('summary-template').textContent = document.getElementById('template').value;
+            } else {
+                document.getElementById('summary-template').textContent = document.getElementById('conversation').value;
+            }
+            
+            configModal.show();
+        });
+
+        // Confirm start button click handler
+        document.getElementById('confirm-start').addEventListener('click', function() {
+            const configModal = bootstrap.Modal.getInstance(document.getElementById('configModal'));
+            configModal.hide();
+            let apiUrl = document.getElementById("api-url")
+            // Update UI to show running state
+            document.getElementById('status-indicator').className = 'status-indicator status-running';
+            document.getElementById('status-text').textContent = 'Running';
+            document.getElementById('start-btn').disabled = true;
+            document.getElementById('stop-btn').disabled = false;
+            
+            // Add log entry
+            addLogEntry('info', 'Starting API Throughput Monitor...');
+            
+            if(globalMonitor && globalMonitor.status !== "Stop"){
+                return;
+            }
+            let model = document.getElementById('model').value || 'Not specified'
+            let api_url = document.getElementById('api-url').value || 'https://api.openai.com/v1)'
+            let api_key = document.getElementById('api-url').value || '';
+            let max_concurrent = parseInt(document.getElementById('max-concurrent').value) // TODO: value check
+            let time_limit = parseInt(document.getElementById('time-limit').value)
+            let datasets = document.getElementById('dataset-name').value
+            globalMonitor = new APIThroughputMonitor(
+                model,
+                api_url,
+                api_key,
+                max_concurrent,
+                time_limit,
+                datasets,
+            )
+            console.log("Run")
+            globalMonitor.run()
+        });
+
+        function runBenchmark(){
+            
         }
     </script>
 </body>
