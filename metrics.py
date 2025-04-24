@@ -421,7 +421,16 @@ def load_dataset_as_questions(dataset_name: str, key: Template | Conversation = 
             ]
             ret.append(conv)
     elif isinstance(key, Conversation):
-        ret = [row[key] for row in dataset]
+        for row in dataset:
+            try:
+                messages = json.loads( row[key] )
+                for turn in messages:
+                    if 'role' in turn and 'content' in turn and isinstance(turn['role'], str) and isinstance(turn['content'], str):
+                        ret.append(messages)
+                    else:
+                        raise ValueError(f"Invalid conversation context")
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Can not load columns '{key}' as Conversation template")
     else:
         ret = None
     return ret
@@ -442,8 +451,6 @@ def main(
     global questions
     if env is not None:
         load_dotenv(env)
-
-    # questions = load_dataset_as_questions(dataset, template)
     
     if template is not None:
         questions = load_dataset_as_questions(dataset, Template(template))

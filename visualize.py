@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from datetime import datetime
 import seaborn as sns
+import fire
 
 class APIMetricsVisualizer:
     def __init__(self, log_file):
@@ -68,10 +69,10 @@ class APIMetricsVisualizer:
         plt.savefig(output_file, dpi=300, bbox_inches='tight')
         plt.close()
 
-def main():
+def main(log_file = "api_monitor.jsonl", output_file = "api_metrics.png"):
     # Configuration
-    log_file = "api_monitor.jsonl"
-    output_file = "api_metrics.png"
+    print(f"Log File: {log_file}")
+    print(f"Output File: {output_file}")
     
     # Create and run visualizer
     visualizer = APIMetricsVisualizer(log_file)
@@ -79,4 +80,4 @@ def main():
     print(f"Visualization saved as {output_file}")
 
 if __name__ == "__main__":
-    main()
+    fire.Fire(main)
