@@ -240,8 +240,17 @@
                                         <input type="password" class="form-control" id="api-key" placeholder="sk-...">
                                     </div>
                                     <div class="col-md-6">
-                                        <label for="model" class="form-label">Model <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="The model to use for API requests"></i></label>
-                                        <input type="text" class="form-control" id="model" value="gpt-3.5-turbo">
+                                        <label for="model" class="form-label">
+                                            Model
+                                            <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="The model to use for API requests"></i>
+                                            <button type="button" id="fetch-models-btn" class="btn btn-sm btn-outline-secondary ms-2" title="Fetch available models">
+                                                <i class="bi bi-cloud-download"></i> Fetch Models
+                                            </button>
+                                        </label>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" id="model" value="gpt-3.5-turbo">
+                                            <select class="form-select d-none" id="model-list"></select>
+                                        </div>
                                     </div>
                                     <div class="col-md-6">
                                         <label for="time-limit" class="form-label">Time Limit (seconds) <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="Duration in seconds to run the monitor"></i></label>
@@ -253,7 +262,7 @@
                                 <div class="row g-3">
                                     <div class="col-md-6">
                                         <label for="max-concurrent" class="form-label">Max Concurrent Requests <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="Maximum number of concurrent API requests"></i></label>
-                                        <input type="number" class="form-control" id="max-concurrent" value="15" min="1" max="100">
+                                        <input type="number" class="form-control" id="max-concurrent" value="150" min="1" max="100">
                                     </div>
                                     <div class="col-md-6">
                                         <label for="columns" class="form-label">Display Columns <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="Number of columns to display in the status table"></i></label>
@@ -309,6 +318,24 @@
                                         <input type="text" class="form-control" id="conversation" value="conversation">
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-terminal-fill me-2"></i>Log Output
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="log-output" class="monitor-container">
+                            <div class="log-entry">
+                                <span class="log-time">[2025-04-01 10:00:00]</span> 
+                                <span class="log-info">API Throughput Monitor initialized. Ready to start.</span>
                             </div>
                         </div>
                     </div>
@@ -377,24 +404,6 @@
                 </div>
             </div>
         </div>
-
-        <div class="row mt-4">
-            <div class="col-md-12">
-                <div class="card">
-                    <div class="card-header">
-                        <i class="bi bi-terminal-fill me-2"></i>Log Output
-                    </div>
-                    <div class="card-body p-0">
-                        <div id="log-output" class="monitor-container">
-                            <div class="log-entry">
-                                <span class="log-time">[2025-04-01 10:00:00]</span> 
-                                <span class="log-info">API Throughput Monitor initialized. Ready to start.</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 
     <!-- Modal for configuration summary -->
@@ -434,7 +443,10 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script>
+        // TODO: add logs into all the function with different log level
+        // TODO: allow user downloads the logs
         var globalMonitor;
         
         const statusClasses = {
@@ -444,8 +456,7 @@
                 'Failed': 'status-failed'
             };
         document.addEventListener('DOMContentLoaded', () => {
-            addLogEntry('info', 'Hello world...');
-            runBenchmark()
+            // Hello world
         })
 
         // Function to add log entries
@@ -471,7 +482,7 @@
             time_limit = 10,
             datasets = "tatsu-lab/alpaca",
             thread_spawn_rate = 1, // maximum number of threads created per scheduling interval
-            pool_update_interval = 200, // Time interval between each thread pool update
+            pool_update_interval = 80, // Time interval between each thread pool update
             
         ){
             this.model = model
@@ -486,9 +497,28 @@
             this.pool = null
             this.thread_spawn_rate = thread_spawn_rate
             this.pool_update_interval = pool_update_interval
+
+            this.start_time = null
+            this.end_time = null
         }
 
         APIThroughputMonitor.prototype.scheduler = function(){
+            // Initialize start time if not set and check if time limit is reached
+            if(this.start_time === null){
+                this.start_time = new Date();
+            }
+            this.end_time = new Date();
+            let elapsed_time = (this.end_time - this.start_time) / 1000; // in seconds
+            console.log("Elapsed time: ", elapsed_time, "Time limit: ", this.time_limit)
+            if(elapsed_time > this.time_limit){
+                console.log("[Monitor STOP] Time limit reached, stopping the monitor.")
+
+                addLogEntry('info', 'Time limit reached. Stopping the monitor.');
+                clearInterval(this.pool);
+                this.status = "Stop"
+                this.pool = null;
+                return;
+            }
             // Create session during run process
             let active_sessions = this.sessions.filter(v=>{
                 return v.status === "Starting" || v.status === "Processing"
@@ -505,12 +535,14 @@
                     this.api_url,
                     this.api_key,
                     this.model,
-                    "Hello world", // this.questions[session_id % this.questions.length]
+                    "Write a story about OpenAI how created GPT 5.", // this.questions[session_id % this.questions.length]
                 )
                 session.makeRequest()
                 this.sessions.push(session)
                 sessionCard.append(session.sessionCard.card)
             }
+            // Update dashboard
+            this.update_dashboard()
         }
         
         APIThroughputMonitor.prototype.run = function(duration = 60){
@@ -527,91 +559,70 @@
             this.pool = setInterval(()=>this.scheduler(), this.pool_update_interval)
         }
 
-        function Session(
-            id,
-            api_url,
-            api_key,
-            model,
-            prompt,
-        ){
-            this.id = id
-            this.api_url = api_key
-            this.api_key = api_key
-            this.model = model
-            this.prompt = prompt
+        APIThroughputMonitor.prototype.update_dashboard = function(){
+            // TODO: update the dashboard with the latest data
+            let active_sessions = this.sessions.filter(v=>{
+                return v.status === "Starting" || v.status === "Processing"
+            })
+            // total requests
+            let total_requests = this.sessions.length
+            
+            // success rate equation: success rate = completed requests / (completed requests + failed requests)
+            let completed_requests = this.sessions.filter(v => v.status === "Completed").length
+            let failed_requests = this.sessions.filter(v => v.status === "Failed").length
+            let success_rate = ((completed_requests) / (completed_requests + failed_requests) * 100) | 0
+            
+            
+            // charters per second.
+            let chars_per_second = this.sessions.reduce((acc, session) => acc + session.chars, 0) / (this.end_time - this.start_time) * 1000
+            document.getElementById('active-sessions').innerText = active_sessions.length
+            document.getElementById('total-requests').innerText = total_requests
+            document.getElementById('success-rate').innerText = success_rate.toFixed(2) + "%"
+            document.getElementById('chars-per-second').innerText = chars_per_second.toFixed(2) + " chars/s"
+        }
+
+        function Session(id, api_url, api_key, model, prompt) {
+            this.id = id;
+            this.api_url = api_url;
+            this.api_key = api_key;
+            this.model = model;
+            this.prompt = prompt;
+
             this.sessionId = id;
             this.startTime = new Date();
-            this.lastChunkReceviedTime = new Date();
+            this.lastChunkReceivedTime = new Date();
             this.chars = 0;
-            this.chunks = 0
-            this.latencties = [];
+            this.chunks = 0;
+            this.latencies = [];
             this.status = 'Starting';
-            this.sessionCard = this.createCard()
+            this.tokens = 0;                // total tokens
+            this.completionTokens = 0;
+            this.promptTokens = 0;
+            this.sessionCard = this.createCard();
+            this.firstChunkTime = null;
+            this.endTime = null;
+            this.rawChunks = [];            // store each chunk's raw data line
+            this.finalResult = '';
+            this.request = null;
+            this.reader = null;
+            this.decoder = new TextDecoder();
+            this.error = null;
         }
 
-        Session.prototype.makeRequest = function(){
-            console.log("Start program")
-            let model = this.model
-            let prompt = this.prompt
-            let api_url = this.api_url
-            let api_key = this.api_key
-            // make a fake request
-            // create a interval and timeout
-            let fakeInterval;
-            let self = this;
-            setTimeout(() => {
-                // fake start
-                self.status = 'Processing';
-                fakeInterval = setInterval(fakeIntervalUpdate, 100);
-                setTimeout(() => {
-                    // fake end
-                    self.status = Math.random() > 0.1 ? 'Failed' : 'Completed';
-                    console.log("End program")
-                    clearInterval(fakeInterval);
-                    self.update()
-                    addLogEntry('success', `Session ${self.sessionId} completed with ${this.chunks} chunks and ${this.latencties.length} latencies.`);
-                }, 10_000);
-            }, 100 + Math.random() * 3000);
-
-            function fakeIntervalUpdate(){
-                let receivedTime = new Date();
-                let latency = receivedTime - self.lastChunkReceviedTime;
-                self.latencties.push(latency);
-
-                self.chars += Math.floor(~~(Math.random() * 5) + 1);
-                self.chunks += 1;
-                self.update()
-
-                self.lastChunkReceviedTime = new Date();
-                addLogEntry('info', `Session ${self.sessionId} is processing... Chunk ${self.chunks}: ${self.chars} chars processed.`);
-            }
-        }
-        Session.prototype.update = function(
-        ){
-            // UI Function
-            // lazy method
-            // console.log("Update")
-            this.sessionCard.chars.innerText = this.chars
-            this.sessionCard.chunks.innerText = this.chunks
-            this.sessionCard.card.className = `session-card ${statusClasses[this.status]}`;
-        }
-
-        Session.prototype.createCard = function(){
+        // --- UI helpers ---
+        Session.prototype.createCard = function() {
             const sessionCard = document.createElement('div');
-            sessionCard.className = `session-card status-starting`;
+            sessionCard.className = `session-card ${statusClasses['Starting']}`;
 
             // Session Header
             const sessionHeader = document.createElement('div');
             sessionHeader.className = 'session-header';
-
             const sessionId = document.createElement('span');
             sessionId.className = 'session-id';
             sessionId.textContent = `Session ${this.id}`;
-
             const sessionStatus = document.createElement('span');
-            sessionStatus.className = `session-status status-${this.status.toLowerCase()}`;
+            sessionStatus.className = `session-status ${statusClasses[this.status]}`;
             sessionStatus.textContent = this.status;
-
             sessionHeader.appendChild(sessionId);
             sessionHeader.appendChild(sessionStatus);
 
@@ -619,69 +630,204 @@
             const sessionBody = document.createElement('div');
             sessionBody.className = 'session-body';
 
-            // Row 1
-            const row1 = document.createElement('div');
-            row1.className = 'row mb-2';
+            // Row 1: Response Time + Chars
+            const row1 = document.createElement('div'); row1.className = 'row mb-2';
+            const col1 = document.createElement('div'); col1.className = 'col-6';
+            const responseTime = document.createElement('strong'); responseTime.textContent = 'Response Time: ';
+            const responseTimeValue = document.createElement('span');
+            col1.appendChild(responseTime); col1.appendChild(responseTimeValue);
+            const col2 = document.createElement('div'); col2.className = 'col-6';
+            const chars = document.createElement('strong'); chars.textContent = 'Chars: ';
+            const charsValue = document.createElement("span"); charsValue.textContent = '0';
+            col2.appendChild(chars); col2.appendChild(charsValue);
+            row1.appendChild(col1); row1.appendChild(col2);
 
-            const col1 = document.createElement('div');
-            col1.className = 'col-6';
-            const responseTime = document.createElement('strong');
-            responseTime.textContent = 'Response Time:';
-            col1.appendChild(responseTime);
-            col1.append(` xxx`);
-
-            const col2 = document.createElement('div')
-            col2.className = 'col-6'
-            const chars = document.createElement('strong')
-            chars.textContent = 'Chars: '
-            const chars_value = document.createElement("span")
-            chars_value.textContent = '0'
-            col2.appendChild(chars)
-            col2.appendChild(chars_value)
-
-            row1.appendChild(col1);
-            row1.appendChild(col2);
-
-            // Row 2
-            const row2 = document.createElement('div')
-            row2.className = 'row';
-
-            const col3 = document.createElement('div')
-            col3.className = 'col-12'
-            const chunks = document.createElement('strong')
-            chunks.textContent = 'Chunks: '
-            chunks_value = document.createElement("span")
-            chunks_value.textContent = '0'
-            col3.appendChild(chunks)
-            col3.appendChild(chunks_value)
-
+            // Row 2: Chunks
+            const row2 = document.createElement('div'); row2.className = 'row';
+            const col3 = document.createElement('div'); col3.className = 'col-12';
+            const chunks = document.createElement('strong'); chunks.textContent = 'Chunks: ';
+            const chunksValue = document.createElement("span"); chunksValue.textContent = '0';
+            col3.appendChild(chunks); col3.appendChild(chunksValue);
             row2.appendChild(col3);
 
-            // Add rows to session body
-            sessionBody.appendChild(row1);
-            sessionBody.appendChild(row2);
+            // Add to session body
+            sessionBody.appendChild(row1); sessionBody.appendChild(row2);
 
             // Session Footer
             const sessionFooter = document.createElement('div');
             sessionFooter.className = 'session-footer';
-
             const footerText = document.createElement('span');
             footerText.className = 'text-muted';
             footerText.textContent = `Updated ${new Date().toLocaleTimeString()}`;
-
             sessionFooter.appendChild(footerText);
 
-            // Assemble card
+            // Assemble
             sessionCard.appendChild(sessionHeader);
             sessionCard.appendChild(sessionBody);
             sessionCard.appendChild(sessionFooter);
+
             return {
                 card: sessionCard,
-                chunks: chunks_value,
-                chars: chars_value,
-                // status: status // status is in the 'sessionCard'
+                chunks: chunksValue,
+                chars: charsValue,
+                time: responseTimeValue,
+                status: sessionStatus,
+                footer: footerText,
             };
-        }
+        };
+
+        Session.prototype.update = function() {
+            var elapsed_time = this.firstChunkTime ? ((new Date() - this.firstChunkTime) / 1000) : 0;
+            this.sessionCard.chars.textContent = this.chars;
+            this.sessionCard.chunks.textContent = this.chunks;
+            this.sessionCard.card.className = `session-card ${statusClasses[this.status]}`;
+            this.sessionCard.status.textContent = this.status;
+            this.sessionCard.status.className = `session-status ${statusClasses[this.status]}`;
+            this.sessionCard.time.textContent = `${elapsed_time.toFixed(2)}s`;
+            this.sessionCard.footer.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+        };
+
+        // --- Main fetch+stream logic ---
+        Session.prototype.makeRequest = async function() {
+            this.status = 'Starting';
+            this.update();
+
+            var apiUrl = this.api_url;
+            var apiKey = this.api_key;
+            var model = this.model;
+            var prompt = this.prompt;
+            console.log(apiUrl, apiKey, model, prompt)
+            this.startTime = new Date();
+            this.firstChunkTime = null;
+            this.endTime = null;
+            this.chars = 0;
+            this.chunks = 0;
+            this.latencies = [];
+            this.tokens = 0; this.completionTokens = 0; this.promptTokens = 0;
+            this.rawChunks = [];
+            this.finalResult = '';
+            this.error = null;
+
+            try {
+                this.status = 'Processing';
+                this.update();
+
+                var response = await fetch(`${this.api_url}/chat/completions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${this.api_key}`
+                    },
+                    body: JSON.stringify({
+                        model: model,
+                        stream: true,
+                        messages: [{ role: "user", content: prompt }]
+                    })
+                });
+
+                if (!response.ok) {
+                    // Try to parse JSON error
+                    var errorText = 'Error with API request';
+                    try {
+                        const errorData = await response.json();
+                        errorText = errorData.error?.message || errorText;
+                    } catch (e) {
+                        errorText = await response.text();
+                    }
+                    throw new Error(errorText);
+                }
+
+                var reader = response.body.getReader();
+                var decoder = new TextDecoder();
+                var assistantContent = '';
+
+                this.firstChunkTime = null; // set when first real chunk happens
+
+                // mainLoop:
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    const chunk = decoder.decode(value, { stream: true });
+                    const lines = chunk.split(/\r?\n/);
+
+                    for (var i = 0; i < lines.length; ++i) {
+                        var line = lines[i];
+                        if (!line.trim()) continue;
+                        this.rawChunks.push(line);
+
+                        if (line.trim() === "data: [DONE]") {
+                            this.status = 'Completed';
+                            this.update();
+                            // break mainLoop;
+                        }
+
+                        // Should be data: <json>
+                        if (!line.startsWith("data:")) continue;
+                        let payload;
+                        try {
+                            payload = JSON.parse(line.slice(5).trim());
+                        } catch (err) {
+                            continue; // skip parse fail
+                        }
+
+                        if (!this.firstChunkTime) {
+                            this.firstChunkTime = new Date();
+                        }
+
+                        // Latency measurement (from last received)
+                        var now = new Date();
+                        var latency = now - this.lastChunkReceivedTime;
+                        this.latencies.push(latency);
+                        this.lastChunkReceivedTime = now;
+
+                        // Text/tokens counts
+                        var chunkText = '';
+                        var addChunks = 0, addChars = 0;
+
+                        if (Array.isArray(payload.choices)) {
+                            for (var j = 0; j < payload.choices.length; ++j) {
+                                var choice = payload.choices[j];
+                                if (choice.delta && typeof choice.delta.content === 'string') {
+                                    chunkText += choice.delta.content;
+                                    addChars += choice.delta.content.length;
+                                    addChunks += 1;
+                                    assistantContent += choice.delta.content;
+                                }
+                                if (choice.finish_reason) {
+                                    this.status = (choice.finish_reason === 'stop' || choice.finish_reason === 'length')
+                                        ? 'Completed'
+                                        : 'Failed';
+                                }
+                            }
+                        }
+                        this.chunks += addChunks;
+                        this.chars += addChars;
+
+                        // Token stats
+                        if (payload.usage) {
+                            this.promptTokens = payload.usage.prompt_tokens ?? this.promptTokens;
+                            this.completionTokens = payload.usage.completion_tokens ?? this.completionTokens;
+                            this.tokens = payload.usage.total_tokens ?? (this.promptTokens + this.completionTokens);
+                        }
+
+                        this.finalResult = assistantContent;
+                        this.update();
+
+                        // (Optional: Callbacks e.g. this.onPartialData && this.onPartialData(chunkText, assistantContent, this))
+                    }
+                }
+                this.endTime = new Date();
+                this.status = this.status === 'Processing' ? 'Completed' : this.status;
+                this.update();
+                // (Optional: this.onComplete && this.onComplete(this.finalResult, this))
+            } catch (err) {
+                this.status = 'Failed';
+                this.endTime = new Date();
+                this.error = err;
+                this.update();
+                // (Optional: this.onError && this.onError(err, this))
+            }
+        };
         // ------ Interface functions ------
         // Start button click handler
         document.getElementById('start-btn').addEventListener('click', function() {
@@ -717,6 +863,8 @@
             
             // Add log entry
             addLogEntry('info', 'Starting API Throughput Monitor...');
+
+            runBenchmark()
         });
 
         function runBenchmark(){
@@ -725,7 +873,7 @@
             }
             let model = document.getElementById('model').value || 'Not specified'
             let api_url = document.getElementById('api-url').value || 'https://api.openai.com/v1)'
-            let api_key = document.getElementById('api-url').value || '';
+            let api_key = document.getElementById('api-key').value || '';
             let max_concurrent = parseInt(document.getElementById('max-concurrent').value) // TODO: value check
             let time_limit = parseInt(document.getElementById('time-limit').value)
             let datasets = document.getElementById('dataset-name').value
@@ -738,8 +886,68 @@
                 datasets,
             )
             console.log("Run")
+            const sessionGrid = document.getElementById('sessions-grid');
+            sessionGrid.innerHTML = ""; // Clear previous sessions
             globalMonitor.run()
         }
+
+        document.getElementById('fetch-models-btn').addEventListener('click', async function() {
+            const btn = this;
+            btn.disabled = true;
+            btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Fetching...`;
+
+            const apiUrl = document.getElementById("api-url").value.trim();
+            const apiKey = document.getElementById("api-key").value.trim();
+            const select = document.getElementById("model-list");
+            const modelInput = document.getElementById("model");
+            select.classList.add('d-none');
+            select.innerHTML = "";
+            if (!apiUrl || !apiKey) {
+                addLogEntry('error', 'API URL and API Key are required to fetch models!');
+                btn.disabled = false;
+                btn.innerHTML = `<i class="bi bi-cloud-download"></i> Fetch Models`;
+                return;
+            }
+            try {
+                const response = await fetch(`${apiUrl}/models`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`
+                    }
+                });
+                if (!response.ok) {
+                    let msg = 'Failed to fetch models';
+                    try { msg = (await response.json()).error?.message || msg; } catch {}
+                    throw new Error(msg);
+                }
+                const data = await response.json();
+                let models = [];
+                if (Array.isArray(data.data)) {
+                    models = data.data.map(m => m.id);
+                } else if (Array.isArray(data.models)) {
+                    models = data.models.map(m => m.id || m);
+                }
+                if (models.length === 0) throw new Error('Model list is empty');
+                select.innerHTML = `<option disabled selected>Choose a model</option>`;
+                models.forEach(m => {
+                    let opt = document.createElement('option');
+                    opt.value = m;
+                    opt.textContent = m;
+                    select.appendChild(opt);
+                });
+                select.classList.remove('d-none');
+                select.onchange = function(){
+                    if(this.value && this.value !== "Choose a model") {
+                        modelInput.value = this.value;
+                    }
+                }
+                addLogEntry('success', `Fetched ${models.length} models.`);
+            } catch(e) {
+                addLogEntry('error', 'Error fetching models: ' + (e.message || e));
+            }
+            btn.disabled = false;
+            btn.innerHTML = `<i class="bi bi-cloud-download"></i> Fetch Models`;
+        });
     </script>
 </body>
 </html>
