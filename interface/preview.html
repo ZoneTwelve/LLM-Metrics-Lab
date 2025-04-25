@@ -444,6 +444,102 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <script>
+        // WebSocket integration for preview.html frontend
+        const wsUrl = 'ws://localhost:8765';
+        let ws;
+        function appendLog(message) {
+            const log = document.getElementById('log-output');
+            const entry = document.createElement('div');
+            entry.textContent = message;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+        function updateStatus(data) {
+            const s = data.summary;
+            document.getElementById('active-sessions').textContent = s.active_sessions;
+            document.getElementById('total-requests').textContent = s.total_requests;
+            const rate = (s.successful_requests + s.failed_requests) 
+                ? ((s.successful_requests / (s.successful_requests + s.failed_requests)) * 100).toFixed(2) + '%' 
+                : '0%';
+            document.getElementById('success-rate').textContent = rate;
+            document.getElementById('chars-per-second').textContent = s.chars_per_sec.toFixed(1);
+            const grid = document.getElementById('sessions-grid');
+            grid.innerHTML = '';
+            if (!data.sessions.length) {
+                grid.innerHTML = '<div class="session-grid-empty"><i class="bi bi-info-circle me-2"></i>No sessions yet</div>';
+            } else {
+                data.sessions.forEach(sess => {
+                    const card = document.createElement('div');
+                    card.className = `session-card status-${sess.status.toLowerCase()}`;
+                    card.innerHTML = `
+                        <div class="session-header">
+                            <span class="session-id">Session ${sess.id}</span>
+                            <span class="session-status status-${sess.status.toLowerCase()}">${sess.status}</span>
+                        </div>
+                        <div class="session-body">
+                            <div class="row mb-2">
+                                <div class="col-6"><strong>Time: </strong>${sess.response_time}</div>
+                                <div class="col-6"><strong>Chars: </strong>${sess.total_chars}</div>
+                            </div>
+                            <div class="row">
+                                <div class="col-12"><strong>Chunks: </strong>${sess.chunks_received}</div>
+                            </div>
+                        </div>
+                        <div class="session-footer">Updated ${new Date().toLocaleTimeString()}</div>
+                    `;
+                    grid.appendChild(card);
+                });
+            }
+        }
+        function connectWS() {
+            ws = new WebSocket(wsUrl);
+                ws.onopen = () => appendLog('WebSocket connected');
+                ws.onclose = () => appendLog('WebSocket disconnected');
+            ws.onmessage = event => {
+                const msg = JSON.parse(event.data);
+                if (msg.status === 'ok' && msg.data) {
+                    updateStatus(msg.data);
+                } else if (msg.sessions && msg.summary) {
+                    updateStatus(msg);
+                } else if (msg.tasks) {
+                    addLogEntry('info', `Received ${msg.tasks.length} tasks from server.`);
+                    const prompts = msg.tasks.map(t => t.prompt);
+                    const sessionGrid = document.getElementById('sessions-grid');
+                    sessionGrid.innerHTML = '';
+                    globalMonitor = new APIThroughputMonitor(
+                        document.getElementById('model').value,
+                        document.getElementById('api-url').value,
+                        document.getElementById('api-key').value,
+                        parseInt(document.getElementById('max-concurrent').value),
+                        parseInt(document.getElementById('time-limit').value),
+                        prompts
+                    );
+                    globalMonitor.run();
+                }
+            };
+        }
+        document.getElementById('start-btn').addEventListener('click', () => {
+            const params = {
+                command: 'start',
+                params: {
+                    model: document.getElementById('model').value,
+                    api_url: document.getElementById('api-url').value,
+                    max_concurrent: parseInt(document.getElementById('max-concurrent').value),
+                    columns: parseInt(document.getElementById('columns').value),
+                    duration: parseInt(document.getElementById('time-limit').value),
+                    dataset: document.getElementById('dataset-name').value,
+                    template: document.getElementById('template').value
+                }
+            };
+            ws.send(JSON.stringify(params));
+        });
+        document.getElementById('stop-btn').addEventListener('click', () => {
+            ws.send(JSON.stringify({ command: 'stop' }));
+        });
+        connectWS();
+    </script>
     <script>
         // TODO: add logs into all the function with different log level
         // TODO: allow user downloads the logs
@@ -902,12 +998,23 @@
             const modelInput = document.getElementById("model");
             select.classList.add('d-none');
             select.innerHTML = "";
-            if (!apiUrl || !apiKey) {
+            if (!apiUrl && !apiKey) {
                 addLogEntry('error', 'API URL and API Key are required to fetch models!');
                 btn.disabled = false;
                 btn.innerHTML = `<i class="bi bi-cloud-download"></i> Fetch Models`;
                 return;
+            } else if (!apiUrl) {
+                addLogEntry('error', 'API URL are required to fetch models!');
+                btn.disabled = false;
+                btn.innerHTML = `<i class="bi bi-cloud-download"></i> Fetch Models`;
+                return;
+            } else if (!apiKey) {
+                addLogEntry('error', 'API Key are required to fetch models!');
+                btn.disabled = false;
+                btn.innerHTML = `<i class="bi bi-cloud-download"></i> Fetch Models`;
+                return;
             }
+            
             try {
                 const response = await fetch(`${apiUrl}/models`, {
                     method: 'GET',
