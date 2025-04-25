@@ -188,7 +188,7 @@
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
         <div class="container">
             <a class="navbar-brand" href="#">
                 <i class="bi bi-speedometer2 me-2"></i>
@@ -233,7 +233,7 @@
                                 <div class="row g-3">
                                     <div class="col-md-6">
                                         <label for="api-url" class="form-label">API URL <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="The base URL of the API endpoint to test"></i></label>
-                                        <input type="text" class="form-control" id="api-url" placeholder="https://api.example.com/v1">
+                                        <input type="text" class="form-control" id="api-url" placeholder="https://api.openai.com/v1">
                                     </div>
                                     <div class="col-md-6">
                                         <label for="api-key" class="form-label">API Key <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="Your API authentication key"></i></label>
@@ -262,11 +262,7 @@
                                 <div class="row g-3">
                                     <div class="col-md-6">
                                         <label for="max-concurrent" class="form-label">Max Concurrent Requests <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="Maximum number of concurrent API requests"></i></label>
-                                        <input type="number" class="form-control" id="max-concurrent" value="150" min="1" max="100">
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label for="columns" class="form-label">Display Columns <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="Number of columns to display in the status table"></i></label>
-                                        <input type="number" class="form-control" id="columns" value="3" min="1" max="10">
+                                        <input type="number" class="form-control" id="max-concurrent" value="10" min="1" max="100">
                                     </div>
                                     <div class="col-md-6">
                                         <label for="log-file" class="form-label">Log File <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="Path to the log file for monitoring data"></i></label>
@@ -553,6 +549,8 @@
             };
         document.addEventListener('DOMContentLoaded', () => {
             // Hello world
+            document.getElementById('fetch-models-btn').addEventListener('click', fetchModel);
+            document.getElementById('api-key').addEventListener('input', fetchModel);
         })
 
         // Function to add log entries
@@ -579,7 +577,7 @@
             datasets = "tatsu-lab/alpaca",
             thread_spawn_rate = 1, // maximum number of threads created per scheduling interval
             pool_update_interval = 80, // Time interval between each thread pool update
-            
+            status_callback = null
         ){
             this.model = model
             this.api_url = api_url
@@ -596,6 +594,7 @@
 
             this.start_time = null
             this.end_time = null
+            this.status_callback = typeof status_callback === 'function' ? status_callback : function(){}
         }
 
         APIThroughputMonitor.prototype.scheduler = function(){
@@ -613,6 +612,8 @@
                 clearInterval(this.pool);
                 this.status = "Stop"
                 this.pool = null;
+                // call function update navbar status
+                this.status_callback(this)
                 return;
             }
             // Create session during run process
@@ -773,7 +774,8 @@
         };
 
         Session.prototype.update = function() {
-            var elapsed_time = this.firstChunkTime ? ((new Date() - this.firstChunkTime) / 1000) : 0;
+            var elapsed_time = this.startTime ? (new Date() - this.startTime) / 1000 : 0
+            // var elapsed_time = this.firstChunkTime ? ((new Date() - this.firstChunkTime) / 1000) : 0;
             this.sessionCard.chars.textContent = this.chars;
             this.sessionCard.chunks.textContent = this.chunks;
             this.sessionCard.card.className = `session-card ${statusClasses[this.status]}`;
@@ -789,20 +791,22 @@
             this.update();
 
             var apiUrl = this.api_url;
-            var apiKey = this.api_key;
-            var model = this.model;
-            var prompt = this.prompt;
-            console.log(apiUrl, apiKey, model, prompt)
-            this.startTime = new Date();
-            this.firstChunkTime = null;
-            this.endTime = null;
-            this.chars = 0;
-            this.chunks = 0;
-            this.latencies = [];
-            this.tokens = 0; this.completionTokens = 0; this.promptTokens = 0;
-            this.rawChunks = [];
-            this.finalResult = '';
-            this.error = null;
+            var apiKey = this.api_key
+            var model = this.model
+            var prompt = this.prompt
+
+            this.startTime = new Date()
+            this.firstChunkTime = null
+            this.endTime = null
+            this.chars = 0
+            this.chunks = 0
+            this.latencies = []
+            this.tokens = 0
+            this.completionTokens = 0
+            this.promptTokens = 0
+            this.rawChunks = []
+            this.finalResult = ''
+            this.error = null
 
             try {
                 this.status = 'Processing';
@@ -987,7 +991,8 @@
             globalMonitor.run()
         }
 
-        document.getElementById('fetch-models-btn').addEventListener('click', async function() {
+        
+        async function fetchModel() {
             const btn = this;
             btn.disabled = true;
             btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Fetching...`;
@@ -1054,7 +1059,7 @@
             }
             btn.disabled = false;
             btn.innerHTML = `<i class="bi bi-cloud-download"></i> Fetch Models`;
-        });
+        }
     </script>
 </body>
 </html>
