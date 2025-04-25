@@ -517,43 +517,43 @@
             ws.onclose = () => {
                 addLogEntry('info', 'WebSocket disconnected');
             };
-        
+            
             ws.onmessage = event => {
                 const msg = JSON.parse(event.data);
+            
                 if (msg.status === 'ok' && msg.data) {
                     updateStatus(msg.data);
-                } else if (msg.sessions && msg.summary) {
-                    updateStatus(msg);
-                } else if (msg.tasks) {
-                    addLogEntry('info', `Received ${msg.tasks.length} tasks from server.`);
-                    const prompts = msg.tasks.map(t => t.prompt);
-                    const sessionGrid = document.getElementById('sessions-grid');
-                    sessionGrid.innerHTML = '';
-                    globalMonitor = new APIThroughputMonitor(
-                        document.getElementById('model').value,
-                        document.getElementById('api-url').value,
-                        document.getElementById('api-key').value,
-                        parseInt(document.getElementById('max-concurrent').value),
-                        parseInt(document.getElementById('time-limit').value),
-                        prompts
-                    );
-                    globalMonitor.run();
-                    // Send confirm message to backend
-                    const confirmation = { command: "confirm", status: "received" };
-                    ws.send(JSON.stringify(confirmation));
-                    addLogEntry('info', 'Sent confirmation: Task received');
                 }
             };
+
+            // ws.onmessage = event => {
+            //     const msg = JSON.parse(event.data);
+            //     if (msg.status === 'ok' && msg.data) {
+            //         updateStatus(msg.data);
+            //     } else if (msg.sessions && msg.summary) {
+            //         addLogEntry('info', `Received final results: ${msg.sessions.length} sessions`);
+            //         updateStatus(msg);
+            //     } else if (msg.tasks) {
+            //         addLogEntry('info', `Received ${msg.tasks.length} tasks from server.`);
+            //         const prompts = msg.tasks.map(t => t.prompt);
+            //         const sessionGrid = document.getElementById('sessions-grid');
+            //         sessionGrid.innerHTML = '';
+            //         globalMonitor = new APIThroughputMonitor(
+            //             document.getElementById('model').value,
+            //             document.getElementById('api-url').value,
+            //             document.getElementById('api-key').value,
+            //             parseInt(document.getElementById('max-concurrent').value),
+            //             parseInt(document.getElementById('time-limit').value),
+            //             prompts
+            //         );
+            //         globalMonitor.run();
+            //         // Send confirm message to backend
+            //         const confirmation = { command: "confirm", status: "received" };
+            //         ws.send(JSON.stringify(confirmation));
+            //         addLogEntry('info', 'Sent confirmation: Task received');
+            //     }
+            // };
         
-            // stop button 還是可以先綁定，因為這邊比較不需要 ws readyState
-            document.getElementById('stop-btn').addEventListener('click', () => {
-                if (ws && ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({ command: 'stop' }));
-                    addLogEntry('info', 'Stop command sent');
-                } else {
-                    addLogEntry('info', 'WebSocket is not open (stop)');
-                }
-            });
         }
         
         connectWS();
