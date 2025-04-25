@@ -34,18 +34,34 @@ def load_dataset_as_questions(dataset_name: str, key: Template | Conversation):
 
 async def websocket_handler(websocket):
     async for message in websocket:
-        data = json.loads(message)
+        print("<<< Received message >>>")  # 這是 debug print
+        try:
+            data = json.loads(message)
+        except json.JSONDecodeError as e:
+            print("!!! Failed to parse message:", e)
+            continue
+        
+        print("[RECV] Raw message:", message)
+        print("[RECV] Parsed data:", data)
+
         if data.get("command") != "start":
             await websocket.send(json.dumps({"error": "Unknown command"}))
             continue
 
         params = data.get("params", {})
+        print("[INFO] Received params:", params)
         api_url = params.get("api_url")
         dataset_name = params.get("dataset")
         tpl = params.get("template")
         conv = params.get("conversation")
+        
+        print("[INFO] api_url:", api_url)
+        print("[INFO] template:", tpl)
+        print("[INFO] conversation:", conv)
+        print("[INFO] dataset:", dataset_name)
 
         if not api_url or not (tpl or conv):
+            print("[ERROR]: ", "api_url and template/conversation required")
             await websocket.send(json.dumps({"error": "api_url and template/conversation required"}))
             continue
 
@@ -56,6 +72,7 @@ async def websocket_handler(websocket):
         else:
             questions = load_dataset_as_questions(dataset_name, Conversation(conv))
 
+        print("[INFO]: ", questions)
         # package tasks
         tasks = []
         for idx, prompt in enumerate(questions):
@@ -65,8 +82,9 @@ async def websocket_handler(websocket):
                 "api_url": api_url,
                 "prompt": prompt
             })
-
+        print(f"Sending {len(tasks)} tasks to frontend")
         await websocket.send(json.dumps({"status": "started", "tasks": tasks}))
+        print("Tasks sent.")
 
 async def main():
     host = os.getenv("HOST", "0.0.0.0")

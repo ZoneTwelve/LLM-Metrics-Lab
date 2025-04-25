@@ -491,8 +491,33 @@
         }
         function connectWS() {
             ws = new WebSocket(wsUrl);
-                ws.onopen = () => appendLog('WebSocket connected');
-                ws.onclose = () => appendLog('WebSocket disconnected');
+        
+            ws.onopen = () => {
+                addLogEntry('info', 'WebSocket connected');
+        
+                document.getElementById('start-btn').addEventListener('click', () => {
+                    addLogEntry('info', 'Start button clicked');
+                    const params = {
+                        command: 'start',
+                        params: {
+                            model: document.getElementById('model').value,
+                            api_url: document.getElementById('api-url').value,
+                            max_concurrent: parseInt(document.getElementById('max-concurrent').value),
+                            duration: parseInt(document.getElementById('time-limit').value),
+                            dataset: document.getElementById('dataset-name').value,
+                            template: document.getElementById('template').value
+                        }
+                    };
+                    addLogEntry('info', 'Sending params to WebSocket: ' + JSON.stringify(params));
+                    ws.send(JSON.stringify(params));
+                    addLogEntry('info', 'Message sent to WebSocket');
+                });
+            };
+        
+            ws.onclose = () => {
+                addLogEntry('info', 'WebSocket disconnected');
+            };
+        
             ws.onmessage = event => {
                 const msg = JSON.parse(event.data);
                 if (msg.status === 'ok' && msg.data) {
@@ -513,27 +538,24 @@
                         prompts
                     );
                     globalMonitor.run();
+                    // Send confirm message to backend
+                    const confirmation = { command: "confirm", status: "received" };
+                    ws.send(JSON.stringify(confirmation));
+                    addLogEntry('info', 'Sent confirmation: Task received');
                 }
             };
+        
+            // stop button 還是可以先綁定，因為這邊比較不需要 ws readyState
+            document.getElementById('stop-btn').addEventListener('click', () => {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ command: 'stop' }));
+                    addLogEntry('info', 'Stop command sent');
+                } else {
+                    addLogEntry('info', 'WebSocket is not open (stop)');
+                }
+            });
         }
-        document.getElementById('start-btn').addEventListener('click', () => {
-            const params = {
-                command: 'start',
-                params: {
-                    model: document.getElementById('model').value,
-                    api_url: document.getElementById('api-url').value,
-                    max_concurrent: parseInt(document.getElementById('max-concurrent').value),
-                    columns: parseInt(document.getElementById('columns').value),
-                    duration: parseInt(document.getElementById('time-limit').value),
-                    dataset: document.getElementById('dataset-name').value,
-                    template: document.getElementById('template').value
-                }
-            };
-            ws.send(JSON.stringify(params));
-        });
-        document.getElementById('stop-btn').addEventListener('click', () => {
-            ws.send(JSON.stringify({ command: 'stop' }));
-        });
+        
         connectWS();
     </script>
     <script>
@@ -977,6 +999,7 @@
             let max_concurrent = parseInt(document.getElementById('max-concurrent').value) // TODO: value check
             let time_limit = parseInt(document.getElementById('time-limit').value)
             let datasets = document.getElementById('dataset-name').value
+            // TODO: replace this creation with WebSocket connection info.
             globalMonitor = new APIThroughputMonitor(
                 model,
                 api_url,
