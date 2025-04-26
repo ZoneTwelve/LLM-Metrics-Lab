@@ -72,7 +72,6 @@ urllib3.disable_warnings(InsecureRequestWarning)
 
 questions = []
 count_id = 0
-connected_clients = set()
 
 class FileHandler:
     def __init__(self, filename: str, mode: str, virtual: bool = False):
@@ -114,6 +113,8 @@ class APIThroughputMonitor:
         self.last_update_time = self.start_time
         self.update_interval = 0.25
         self.output_dir = output_dir
+        self.running = True
+        self._stop_requested = False
         
         # Initialize log file
         with open(self.log_file, 'w') as f:
@@ -183,7 +184,7 @@ class APIThroughputMonitor:
             )
             table.add_row(stats_summary)
             if self.total_requests:
-                success_rate = round(self.successful_requests/self.total_requests, 2)
+                success_rate = round(self.successful_requests/self.total_requests * 100, 2)
             else:
                 success_rate = 0
             
@@ -198,8 +199,6 @@ class APIThroughputMonitor:
                 "total_chars": total_chars,
                 "total_chunks": total_chunks
             }
-            
-            logger.info(f"ROW: {sessions_data}")
             
             await websocket.send(json.dumps({
                 "status": "stats_update",
@@ -421,7 +420,8 @@ class APIThroughputMonitor:
         self.duration = duration
         end_time = time.time() + duration
         session_id = 0
-        # self.running = True
+        self.running = True
+        self._stop_requested = False
         
         logger.info(f"🧪 Starting run loop for {duration}s with max_concurrent={self.max_concurrent}")
         
@@ -431,8 +431,7 @@ class APIThroughputMonitor:
             vertical_overflow="visible",
             auto_refresh=True
         ) as live:
-            # while time.time() < end_time and self.running:
-            while time.time() < end_time:
+            while time.time() < end_time and self.running:
                 current_time = time.time()
 
                 if current_time - self.last_log_time >= 1.0:
@@ -452,7 +451,16 @@ class APIThroughputMonitor:
                 await asyncio.sleep(0.1)
 
         logger.info("🛑 run() has ended due to time_limit.")
-        # self.running = False
+        self.running = False
+        
+    def request_stop(self):
+        logger.info(f"[request_stop] id(self): {id(self)}")
+        if not self._stop_requested:
+            logger.info("🛑 Stop requested for monitor.")
+            monitor = None
+            monitor_task = None
+            self._stop_requested = True
+
 
 def load_dataset_as_questions(dataset_name: str, key: Template | Conversation):
     dataset = load_dataset(dataset_name)['train']
@@ -481,9 +489,11 @@ def load_dataset_as_questions(dataset_name: str, key: Template | Conversation):
 
 # Global monitor instance
 monitor = None
+monitor_task = None
+connected_clients = set()
 
 async def websocket_handler(websocket):
-    global monitor, connected_clients
+    global monitor, monitor_task, connected_clients, count_id
     
     logger.info(f"Client connected: {websocket.remote_address}")
     connected_clients.add(websocket)
@@ -494,20 +504,13 @@ async def websocket_handler(websocket):
             except json.JSONDecodeError as e:
                 print("!!! Failed to parse message:", e)
                 continue
-            
-
-            if data.get("command") != "start":
-                await websocket.send(json.dumps({"error": "Unknown command"}))
-                continue
 
             # 處理 "start" 命令
             if data.get("command") == "start":
-                # if monitor and monitor.running:
-                if monitor:
+                if monitor and monitor.running:
                     await websocket.send(json.dumps({"status": "error", "message": "Monitor already running"}))
                 else:
                     params = data.get("params", {})
-                    print("[INFO] Received params:", params)
                     model = params.get('model', os.getenv('MODEL', 'gpt-3.5-turbo'))
                     api_url = normalize_url(params.get('api_url', os.environ.get('API_URL')))
                     max_concurrent = int(params.get('max_concurrent', 5))
@@ -554,7 +557,15 @@ async def websocket_handler(websocket):
                     monitor_task = asyncio.create_task(monitor.run(websocket, duration=time_limit))
                             
                     await monitor_task
+                    monitor = None
                     logger.info(f"Monitor Task Done")
+            # elif data.get("command") == "stop":
+            #     logger.info(f"STOP: {monitor}")
+            #     if monitor and monitor.running:
+            #         monitor.request_stop()
+            #         await websocket.send(json.dumps({"status": "stopping", "message": "Monitor stopping"}))
+            #     else:
+            #         await websocket.send(json.dumps({"status": "error", "message": "No monitor running"}))
 
 
     except websockets.exceptions.ConnectionClosed:
@@ -565,12 +576,25 @@ async def websocket_handler(websocket):
         logger.error(f"WebSocket error: {str(e)}")
     finally:
         connected_clients.discard(websocket)
+        
+async def monitor_cleaner():
+    """Background task to clean up monitor after it finishes"""
+    global monitor, monitor_task, count_id
+    while True:
+        if monitor_task is not None and monitor_task.done():
+            logger.info("✅ Monitor task finished, cleaning up")
+            monitor = None
+            monitor_task = None
+            count_id = 0
+        await asyncio.sleep(0.5)
+
 
 async def main():
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", 8765))
     server = await websockets.serve(websocket_handler, host, port)
     print(f"WebSocket server running at ws://{host}:{port}")
+    asyncio.create_task(monitor_cleaner())
     await server.wait_closed()
 
 if __name__ == "__main__":

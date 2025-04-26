@@ -508,9 +508,9 @@
                     // Update sessions and dashboard
                     handleStatsUpdate(msg.data);
                 } else if (msg.status === 'completed') {
-                    addLogEntry("Monitor finished");
+                    addLogEntry('info', 'Monitor finished');
                 } else {
-                    addLogEntry('Unknown message:', msg);
+                    addLogEntry('info', 'Unknown message');
                 }
             };
         }
@@ -947,6 +947,21 @@
 
             runBenchmark()
         });
+
+        // Stop button click handler
+        document.getElementById('stop-btn').addEventListener('click', function() {
+            // Update UI to show stopped state
+            document.getElementById('status-indicator').className = 'status-indicator status-stopped';
+            document.getElementById('status-text').textContent = 'Stopped';
+            document.getElementById('start-btn').disabled = false;
+            document.getElementById('stop-btn').disabled = true;
+            
+            // Add log entry
+            addLogEntry('info', 'Stopping API Throughput Monitor...');
+            
+            sendStopCommand()
+        });
+
         let isRunning = false;
         function runBenchmark(){
             if (isRunning) {
@@ -984,6 +999,18 @@
                 addLogEntry('error', 'WebSocket not connected.');
             }
         }
+        
+        function sendStopCommand() {
+            isRunning = false;
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({
+                command: "stop"
+              }));
+              addLogEntry('info', '⏹️ Sent stop command.');
+            } else {
+              addLogEntry('info', '🛑 Cannot send stop, connection not open.');
+            }
+          }          
 
         
         async function fetchModel() {
