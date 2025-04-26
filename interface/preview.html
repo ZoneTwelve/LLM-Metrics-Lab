@@ -445,73 +445,56 @@
         // WebSocket integration for preview.html frontend
         const wsUrl = 'ws://localhost:8765';
         let ws;
-        function appendLog(message) {
-            const log = document.getElementById('log-output');
-            const entry = document.createElement('div');
-            entry.textContent = message;
-            log.appendChild(entry);
-            log.scrollTop = log.scrollHeight;
+        const sessions = {};
+        
+        function updateDashboard(stats) {
+            document.getElementById('active-sessions').innerText = stats.active;
+            document.getElementById('total-requests').innerText = stats.total;
+            document.getElementById('success-rate').innerText = stats.success_rate.toFixed(2) + "%";
+            document.getElementById('chars-per-second').innerText = stats.chars_per_sec.toFixed(2) + " chars/s";
         }
-        function updateStatus(data) {
-            const s = data.summary;
-            document.getElementById('active-sessions').textContent = s.active_sessions;
-            document.getElementById('total-requests').textContent = s.total_requests;
-            const rate = (s.successful_requests + s.failed_requests) 
-                ? ((s.successful_requests / (s.successful_requests + s.failed_requests)) * 100).toFixed(2) + '%' 
-                : '0%';
-            document.getElementById('success-rate').textContent = rate;
-            document.getElementById('chars-per-second').textContent = s.chars_per_sec.toFixed(1);
-            const grid = document.getElementById('sessions-grid');
-            grid.innerHTML = '';
-            if (!data.sessions.length) {
-                grid.innerHTML = '<div class="session-grid-empty"><i class="bi bi-info-circle me-2"></i>No sessions yet</div>';
-            } else {
-                data.sessions.forEach(sess => {
-                    const card = document.createElement('div');
-                    card.className = `session-card status-${sess.status.toLowerCase()}`;
-                    card.innerHTML = `
-                        <div class="session-header">
-                            <span class="session-id">Session ${sess.id}</span>
-                            <span class="session-status status-${sess.status.toLowerCase()}">${sess.status}</span>
-                        </div>
-                        <div class="session-body">
-                            <div class="row mb-2">
-                                <div class="col-6"><strong>Time: </strong>${sess.response_time}</div>
-                                <div class="col-6"><strong>Chars: </strong>${sess.total_chars}</div>
-                            </div>
-                            <div class="row">
-                                <div class="col-12"><strong>Chunks: </strong>${sess.chunks_received}</div>
-                            </div>
-                        </div>
-                        <div class="session-footer">Updated ${new Date().toLocaleTimeString()}</div>
-                    `;
-                    grid.appendChild(card);
-                });
+
+        function handleStatsUpdate(data) {
+            const rows = data.sessions;
+            const dashboard = data.dashboard;
+        
+            Object.entries(rows).forEach(([id, sessionData]) => {
+                let session = sessions[id];
+                if (!session) {
+                    session = new Session(id, '', '', '', '');
+                    sessions[id] = session;
+                    document.getElementById('sessions-grid').appendChild(session.sessionCard.card);
+                }
+        
+                session.status = sessionData.status;
+                session.chars = sessionData.total_chars;
+                session.chunks = sessionData.chunks_received;
+        
+                if (sessionData.start_time) session.startTime = new Date(sessionData.start_time * 1000);
+                if (sessionData.first_token_latency) session.firstChunkTime = new Date((sessionData.start_time + sessionData.first_token_latency) * 1000);
+                if (sessionData.response_time && typeof sessionData.response_time === 'string') {
+                    // response_time 是 "3.41s" 這種字串，要 parse 成數字
+                    const seconds = parseFloat(sessionData.response_time.replace('s', ''));
+                    if (!isNaN(seconds)) {
+                        session.endTime = new Date((sessionData.start_time + seconds) * 1000);
+                    }
+                }
+        
+                session.update();
+            });
+        
+            if (dashboard) {
+                updateDashboard(dashboard);
             }
         }
+        
+
+        
         function connectWS() {
             ws = new WebSocket(wsUrl);
         
             ws.onopen = () => {
                 addLogEntry('info', 'WebSocket connected');
-        
-                document.getElementById('start-btn').addEventListener('click', () => {
-                    addLogEntry('info', 'Start button clicked');
-                    const params = {
-                        command: 'start',
-                        params: {
-                            model: document.getElementById('model').value,
-                            api_url: document.getElementById('api-url').value,
-                            max_concurrent: parseInt(document.getElementById('max-concurrent').value),
-                            duration: parseInt(document.getElementById('time-limit').value),
-                            dataset: document.getElementById('dataset-name').value,
-                            template: document.getElementById('template').value
-                        }
-                    };
-                    addLogEntry('info', 'Sending params to WebSocket: ' + JSON.stringify(params));
-                    ws.send(JSON.stringify(params));
-                    addLogEntry('info', 'Message sent to WebSocket');
-                });
             };
         
             ws.onclose = () => {
@@ -520,40 +503,16 @@
             
             ws.onmessage = event => {
                 const msg = JSON.parse(event.data);
-            
-                if (msg.status === 'ok' && msg.data) {
-                    updateStatus(msg.data);
+        
+                if (msg.status === 'stats_update') {
+                    // Update sessions and dashboard
+                    handleStatsUpdate(msg.data);
+                } else if (msg.status === 'completed') {
+                    addLogEntry("Monitor finished");
+                } else {
+                    addLogEntry('Unknown message:', msg);
                 }
             };
-
-            // ws.onmessage = event => {
-            //     const msg = JSON.parse(event.data);
-            //     if (msg.status === 'ok' && msg.data) {
-            //         updateStatus(msg.data);
-            //     } else if (msg.sessions && msg.summary) {
-            //         addLogEntry('info', `Received final results: ${msg.sessions.length} sessions`);
-            //         updateStatus(msg);
-            //     } else if (msg.tasks) {
-            //         addLogEntry('info', `Received ${msg.tasks.length} tasks from server.`);
-            //         const prompts = msg.tasks.map(t => t.prompt);
-            //         const sessionGrid = document.getElementById('sessions-grid');
-            //         sessionGrid.innerHTML = '';
-            //         globalMonitor = new APIThroughputMonitor(
-            //             document.getElementById('model').value,
-            //             document.getElementById('api-url').value,
-            //             document.getElementById('api-key').value,
-            //             parseInt(document.getElementById('max-concurrent').value),
-            //             parseInt(document.getElementById('time-limit').value),
-            //             prompts
-            //         );
-            //         globalMonitor.run();
-            //         // Send confirm message to backend
-            //         const confirmation = { command: "confirm", status: "received" };
-            //         ws.send(JSON.stringify(confirmation));
-            //         addLogEntry('info', 'Sent confirmation: Task received');
-            //     }
-            // };
-        
         }
         
         connectWS();
@@ -984,15 +943,18 @@
             document.getElementById('stop-btn').disabled = false;
             
             // Add log entry
-            addLogEntry('info', 'Starting API Throughput Monitor...');
+            addLogEntry('info', '🖥️ Starting API Throughput Monitor...');
 
             runBenchmark()
         });
-
+        let isRunning = false;
         function runBenchmark(){
-            if(globalMonitor && globalMonitor.status !== "Stop"){
+            if (isRunning) {
+                addLogEntry('warn', 'Benchmark is already running.');
                 return;
             }
+        
+            isRunning = true;
             let model = document.getElementById('model').value || 'Not specified'
             let api_url = document.getElementById('api-url').value || 'https://api.openai.com/v1)'
             let api_key = document.getElementById('api-key').value || '';
@@ -1000,18 +962,27 @@
             let time_limit = parseInt(document.getElementById('time-limit').value)
             let datasets = document.getElementById('dataset-name').value
             // TODO: replace this creation with WebSocket connection info.
-            globalMonitor = new APIThroughputMonitor(
-                model,
-                api_url,
-                api_key,
-                max_concurrent,
-                time_limit,
-                datasets,
-            )
-            console.log("Run")
+
             const sessionGrid = document.getElementById('sessions-grid');
             sessionGrid.innerHTML = ""; // Clear previous sessions
-            globalMonitor.run()
+
+            const params = {
+                command: 'start',
+                params: {
+                    model: document.getElementById('model').value,
+                    api_url: document.getElementById('api-url').value,
+                    max_concurrent: parseInt(document.getElementById('max-concurrent').value),
+                    duration: parseInt(document.getElementById('time-limit').value),
+                    dataset: document.getElementById('dataset-name').value,
+                    template: document.getElementById('template').value
+                }
+            };
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify(params));
+                addLogEntry('info', '📡 Sent start command to server.');
+            } else {
+                addLogEntry('error', 'WebSocket not connected.');
+            }
         }
 
         

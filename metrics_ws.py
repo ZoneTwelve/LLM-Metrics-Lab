@@ -114,7 +114,6 @@ class APIThroughputMonitor:
         self.last_update_time = self.start_time
         self.update_interval = 0.25
         self.output_dir = output_dir
-        self.running = True
         
         # Initialize log file
         with open(self.log_file, 'w') as f:
@@ -135,7 +134,7 @@ class APIThroughputMonitor:
             f"Chunks: {info['chunks_received']:3}"
         )
         
-    async def generate_status_table(self):
+    async def generate_status_table(self, websocket):
         table = Table(
             title="API Throughput Monitor",
             box=box.ROUNDED,
@@ -146,6 +145,8 @@ class APIThroughputMonitor:
         for i in range(self.columns):
             table.add_column(f"Session Group {i+1}", justify="left")
 
+        sessions_data = {}
+        
         async with self.lock:
             sorted_sessions = sorted(self.sessions.items(), key=lambda x: int(x[0]))
             num_sessions = len(sorted_sessions)
@@ -158,6 +159,7 @@ class APIThroughputMonitor:
                     if session_idx < len(sorted_sessions):
                         session_id, info = sorted_sessions[session_idx]
                         row_data.append(self.get_session_status(session_id, info))
+                        sessions_data[session_id] = info
                     else:
                         row_data.append("")
                 table.add_row(*row_data)
@@ -180,6 +182,32 @@ class APIThroughputMonitor:
                 f"Total Chunks: {total_chunks}"
             )
             table.add_row(stats_summary)
+            if self.total_requests:
+                success_rate = round(self.successful_requests/self.total_requests, 2)
+            else:
+                success_rate = 0
+            
+            summary_stats_to_send = {
+                "time": elapsed_time,
+                "active": self.active_sessions,
+                "total": self.total_requests,
+                "success": self.successful_requests,
+                "failed": self.failed_requests,
+                "success_rate": success_rate,
+                "chars_per_sec": chars_per_sec,
+                "total_chars": total_chars,
+                "total_chunks": total_chunks
+            }
+            
+            logger.info(f"ROW: {sessions_data}")
+            
+            await websocket.send(json.dumps({
+                "status": "stats_update",
+                "data": {
+                    "sessions": sessions_data,
+                    "dashboard": summary_stats_to_send
+                }
+            }))
 
         return table
     
@@ -289,41 +317,9 @@ class APIThroughputMonitor:
             logger.debug(f"Error processing line: {line}")
             return None
     
-    def get_stats(self):
-        elapsed_time = time.time() - self.start_time
-        total_chars = sum(s.get("total_chars", 0) for s in self.sessions.values())
-        total_chunks = sum(s.get("chunks_received", 0) for s in self.sessions.values())
-        chars_per_sec = total_chars / elapsed_time if elapsed_time > 0 else 0
-
-        session_data = []
-        for session_id, s in self.sessions.items():
-            session_data.append({
-                "id": session_id,
-                "status": s.get("status", "Unknown"),
-                "startTime": datetime.fromtimestamp(s.get("start_time")).isoformat() if s.get("start_time") else None,
-                "chars": s.get("total_chars", 0),
-                "chunks": s.get("chunks_received", 0),
-            })
-
-        return {
-            "status": "ok",
-            "data": {
-                "sessions": session_data,
-                "summary": {
-                    "elapsed_time": round(elapsed_time, 2),
-                    "active": self.active_sessions,
-                    "total": self.total_requests,
-                    "success": self.successful_requests,
-                    "failed": self.failed_requests,
-                    "chars_per_sec": round(chars_per_sec, 2),
-                    "total_chars": total_chars,
-                    "total_chunks": total_chunks,
-                }
-            }
-        }
 
     async def make_request(self, session_id):
-        logger.info(f"👷 make_request START: session_id={session_id}")
+        # logger.info(f"👷 make_request START: session_id={session_id}")
         global count_id
         headers = {
             "Content-Type": "application/json",
@@ -355,8 +351,6 @@ class APIThroughputMonitor:
             start_time = time.time()
             next_token_time = start_time
             
-            logger.info(f"Sending request to {self.api_url}/chat/completions with payload: {json.dumps(payload)}")
-
             # Make request with SSL verification disabled
             async with httpx.AsyncClient(verify=False, timeout=180.0) as client:
                 async with client.stream("POST", f"{self.api_url}/chat/completions", headers=headers, json=payload) as response:
@@ -371,7 +365,7 @@ class APIThroughputMonitor:
                         if line:
                             data = self.process_stream_info(line)
                             if data is None:
-                                logger.info(f"Processing finished for session {session_id}")
+                                # logger.info(f"Processing finished for session {session_id}")
                                 break
                             output_record.write(json.dumps(data) + "\n")
 
@@ -397,7 +391,7 @@ class APIThroughputMonitor:
                     "error": None
                 })
                 self.successful_requests += 1
-            logger.info(f"✅ make_request END: session_id={session_id}")
+            # logger.info(f"✅ make_request END: session_id={session_id}")
         except Exception as e:
             async with self.lock:
                 logger.error(f"Error in session {session_id}: {str(e)}")
@@ -422,42 +416,43 @@ class APIThroughputMonitor:
             return True
         return False
     
-    async def run(self, duration=10):
+    async def run(self, websocket, duration=10):
         """Async version of run for WebSocket integration"""
         self.duration = duration
         end_time = time.time() + duration
         session_id = 0
-        self.running = True
+        # self.running = True
         
         logger.info(f"🧪 Starting run loop for {duration}s with max_concurrent={self.max_concurrent}")
         
         with Live(
-            await self.generate_status_table(),
+            await self.generate_status_table(websocket),
             refresh_per_second=4,
             vertical_overflow="visible",
             auto_refresh=True
         ) as live:
-            while time.time() < end_time and self.running:
-                logger.info(f"end_time: {end_time}, time: {time.time()}")
-                logger.info(f"[run loop] active: {self.active_sessions}, max: {self.max_concurrent}")
+            # while time.time() < end_time and self.running:
+            while time.time() < end_time:
                 current_time = time.time()
 
                 if current_time - self.last_log_time >= 1.0:
                     await self.log_status()
 
-                logger.info(f"[run loop] active: {self.active_sessions}, max: {self.max_concurrent}")
+                # logger.info(f"[run loop] active: {self.active_sessions}, max: {self.max_concurrent}")
                 if self.active_sessions < self.max_concurrent:
                     session_id += 1
-                    logger.info(f"🚀 Launching make_request for session {session_id}")
+                    # logger.info(f"🚀 Launching make_request for session {session_id}")
                     async with self.lock:
                         self.active_sessions += 1
                     asyncio.create_task(self.make_request(session_id))
+                    
+                if self.should_update_display():
+                    live.update(await self.generate_status_table(websocket))
 
                 await asyncio.sleep(0.1)
 
         logger.info("🛑 run() has ended due to time_limit.")
-        self.running = False
-        await asyncio.sleep(1)
+        # self.running = False
 
 def load_dataset_as_questions(dataset_name: str, key: Template | Conversation):
     dataset = load_dataset(dataset_name)['train']
@@ -494,15 +489,12 @@ async def websocket_handler(websocket):
     connected_clients.add(websocket)
     try:
         async for message in websocket:
-            logger.info("<<< Received message >>>")  # 這是 debug print
             try:
                 data = json.loads(message)
             except json.JSONDecodeError as e:
                 print("!!! Failed to parse message:", e)
                 continue
             
-            logger.info("[RECV] Raw message:", message)
-            logger.info("[RECV] Parsed data:", data)
 
             if data.get("command") != "start":
                 await websocket.send(json.dumps({"error": "Unknown command"}))
@@ -510,8 +502,9 @@ async def websocket_handler(websocket):
 
             # 處理 "start" 命令
             if data.get("command") == "start":
-                if monitor and monitor.running:
-                        await websocket.send(json.dumps({"status": "error", "message": "Monitor already running"}))
+                # if monitor and monitor.running:
+                if monitor:
+                    await websocket.send(json.dumps({"status": "error", "message": "Monitor already running"}))
                 else:
                     params = data.get("params", {})
                     print("[INFO] Received params:", params)
@@ -558,42 +551,12 @@ async def websocket_handler(websocket):
                     await websocket.send(json.dumps({"status": "started", "message": "Monitor started"}))
                     
                     # Run the monitor in the background
-                    asyncio.create_task(monitor.run(duration=time_limit))
-                    
-                    logger.info(f"RUN INFO: {monitor.running}")
-                    
-                    # Send sessions status to frontend
-                    while monitor.running:
-                        logger.info(f"RUNNING")
-                        await asyncio.sleep(1)
-                        stats = monitor.get_stats()
-                        try:
-                            logger.info(f"Sending periodic stats to frontend.")
-                            await websocket.send(json.dumps(stats))
-                        except Exception as e:
-                            logger.error(f"Error sending stats to frontend: {e}")
-                            break
+                    monitor_task = asyncio.create_task(monitor.run(websocket, duration=time_limit))
+                            
+                    await monitor_task
+                    logger.info(f"Monitor Task Done")
 
-                    # Send final status
-                    if not monitor.running:
-                        logger.info(f"Sending final stats to frontend.")
-                        await websocket.send(json.dumps({
-                            "status": "completed",
-                            "message": "Monitor completed",
-                            "data": monitor.get_stats()
-                        }))
 
-            # 處理 "confirm" 命令
-            elif data.get("command") == "confirm":
-                print("[INFO] Received confirmation from frontend:", data)
-                confirmation_status = {
-                    "status": "received",
-                    "message": "Task received by frontend"
-                }
-
-                # 可以選擇發送回應給前端
-                await websocket.send(json.dumps({"status": "acknowledged", "message": confirmation_status}))
-                print("[INFO] Sent acknowledgment to frontend.")
     except websockets.exceptions.ConnectionClosed:
         logger.info(f"Client disconnected: {websocket.remote_address}")
     except json.JSONDecodeError:
