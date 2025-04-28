@@ -588,13 +588,26 @@ async def websocket_handler(websocket):
         
 async def monitor_cleaner():
     """Background task to clean up monitor after it finishes"""
-    global monitor, monitor_task, count_id
+    global monitor, monitor_task, count_id, connected_clients
     while True:
         if monitor_task is not None and monitor_task.done():
             monitor = None
             monitor_task = None
             count_id = 0
             logger.info("✅ Monitor task finished, cleaning up")
+            
+            # Send completion message to all connected clients
+            for websocket in connected_clients:
+                try:
+                    completion_message = {
+                        "status": "completed",
+                        "message": "Benchmark run finished"
+                    }
+                    await websocket.send(json.dumps(completion_message))
+                    logger.info(f"📡 Sent completion message to {websocket.remote_address}")
+                except Exception as e:
+                    logger.error(f"Error sending message to {websocket.remote_address}: {str(e)}")
+                    
         await asyncio.sleep(0.5)
 
 

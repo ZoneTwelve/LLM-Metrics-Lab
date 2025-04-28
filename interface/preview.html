@@ -507,10 +507,15 @@
                 if (msg.status === 'stats_update') {
                     // Update sessions and dashboard
                     handleStatsUpdate(msg.data);
-                } else if (msg.status === 'completed') {
-                    addLogEntry('info', 'Monitor finished');
-                } else {
-                    addLogEntry('info', 'Unknown message');
+                }
+
+                if (msg.status === 'completed') {
+                    isRunning = false;
+                    addLogEntry('info', msg.message);
+                    document.getElementById('start-btn').disabled = false;
+                    document.getElementById('stop-btn').disabled = true;
+                    document.getElementById('status-indicator').className = 'status-indicator status-stopped';
+                    document.getElementById('status-text').textContent = 'Completed';
                 }
             };
         }
@@ -913,6 +918,7 @@
         // Start button click handler
         document.getElementById('start-btn').addEventListener('click', function() {
             const configModal = new bootstrap.Modal(document.getElementById('configModal'));
+            resetDashboard();
             
             // Populate summary fields
             document.getElementById('summary-api-url').textContent = document.getElementById('api-url').value || 'https://api.openai.com/v1 (Not specified)';
@@ -945,7 +951,7 @@
             // Add log entry
             addLogEntry('info', '🖥️ Starting API Throughput Monitor...');
 
-            runBenchmark()
+            runBenchmark();
         });
 
         // Stop button click handler
@@ -959,7 +965,7 @@
             // Add log entry
             addLogEntry('info', 'Stopping API Throughput Monitor...');
             
-            sendStopCommand()
+            sendStopCommand();
         });
 
         let isRunning = false;
@@ -988,7 +994,7 @@
                 // sessions[session].status = "Stop"
                 // sessions[session].update()
                 delete sessions[session]
-}
+            }
 
             const params = {
                 command: 'start',
@@ -1019,7 +1025,24 @@
             } else {
               addLogEntry('info', '🛑 Cannot send stop, connection not open.');
             }
-          }          
+        }
+
+        function resetDashboard() {
+            init_stats = {"active": 0,
+                          "total": 0,
+                          "success_rate": 0,
+                          "chars_per_sec": 0
+            }
+            updateDashboard(init_stats)
+
+            const sessionsGrid = document.getElementById('sessions-grid');
+            sessionsGrid.innerHTML = "";
+            const emptyMessage = document.createElement('div');
+            emptyMessage.classList.add('session-grid-empty');
+            emptyMessage.innerHTML = '<i class="bi bi-info-circle me-2"></i>No sessions yet';
+            sessionsGrid.appendChild(emptyMessage);
+        }
+        
 
         
         async function fetchModel() {
