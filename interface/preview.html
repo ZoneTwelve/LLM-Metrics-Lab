@@ -978,8 +978,17 @@
             let datasets = document.getElementById('dataset-name').value
             // TODO: replace this creation with WebSocket connection info.
 
-            const sessionGrid = document.getElementById('sessions-grid');
-            sessionGrid.innerHTML = ""; // Clear previous sessions
+            // const sessionGrid = document.getElementById('sessions-grid');
+            // sessionGrid.innerHTML = ""; // Clear previous sessions
+
+            const sessionCard = document.getElementById('sessions-grid');
+            sessionCard.innerHTML = "";
+
+            for(let session in Object.keys(sessions)){
+                // sessions[session].status = "Stop"
+                // sessions[session].update()
+                delete sessions[session]
+}
 
             const params = {
                 command: 'start',
@@ -987,7 +996,7 @@
                     model: document.getElementById('model').value,
                     api_url: document.getElementById('api-url').value,
                     max_concurrent: parseInt(document.getElementById('max-concurrent').value),
-                    duration: parseInt(document.getElementById('time-limit').value),
+                    time_limit: parseInt(document.getElementById('time-limit').value),
                     dataset: document.getElementById('dataset-name').value,
                     template: document.getElementById('template').value
                 }
