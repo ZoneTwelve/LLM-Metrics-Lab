@@ -70,7 +70,7 @@ python3 metrics.py \\
   --conversation="conversation"
 ```
 
-![image.png](attachment:4ba83172-295d-4577-9859-d304b56f82ce:image.png)
+![image](https://github.com/user-attachments/assets/9a81d39c-e769-402e-97d3-9d3fd60dcb7b)
 
 **Dataset Preview:**
 
@@ -285,7 +285,7 @@ These three graphs display the performance of the large language model (LLM) ove
 
 This graph reflects the model's **output speed** at each moment. A higher value indicates better output efficiency at that time. Fig. 1 shows that the model's output rate fluctuates within a narrow, stable range, indicating consistent generation speed and efficient handling of incoming requests under load.
 
-![Fig. 1: Performance (Characters per Second)](attachment:9cafe578-c1ce-44e2-a2f9-fae1319d9121:image.png)
+![Fig. 1: Performance (Characters per Second)](https://github.com/user-attachments/assets/2cd7bdf2-8069-49af-9ea6-7bb1b7f7395b)
 
 Fig. 1: Performance (Characters per Second)
 
@@ -293,7 +293,7 @@ Fig. 1: Performance (Characters per Second)
 
 This graph shows the **cumulative output characters** of the model, meaning the total number of characters the model has output over time. The total number of characters increases steadily over time in Fig. 2, with a consistent slope. This indicates that the model maintains a stable and uniform output rate, reflecting consistent throughput per unit time.
 
-![Fig. 2: Performance (Total Characters over Time)](attachment:8a92e590-4bc2-4358-92b0-54cec77bbace:image.png)
+![Fig. 2: Performance (Total Characters over Time)](https://github.com/user-attachments/assets/4ce21853-0dcd-4fab-ae52-30835deb9f55)
 
 Fig. 2: Performance (Total Characters over Time)
 
@@ -301,7 +301,7 @@ Fig. 2: Performance (Total Characters over Time)
 
 This graph shows how many sessions are active at each moment in time, helping assess how well the system handles concurrent requests over time. The number of active sessions remains consistently high throughout the test period in Fig. 3, which may suggest underutilized resources, as the system does not appear to be reducing session load despite sustained concurrency.
 
-![Fig. 3: Performance (Active Sessions over Time)](attachment:987ec015-56cd-457b-a864-bf6106de24f8:image.png)
+![Fig. 3: Performance (Active Sessions over Time)](https://github.com/user-attachments/assets/0474bee5-aa12-4028-8328-f16f78f7d3d4)
 
 Fig. 3: Performance (Active Sessions over Time)
 
@@ -313,7 +313,7 @@ The following sections explain the meaning and interpretation of different featu
 
 In Fig. 4, under high concurrency (`max-concurrent = 512`), it shows occasional sharp drops in the Active Sessions chart. However, the Total Characters over Time chart reveals a stable and consistent throughput throughout the measurement window. This indicates that the session drops are not due to instability or resource exhaustion, but are instead a result of the model’s high processing efficiency—requests are completed rapidly, leading to fewer concurrently active sessions.
 
-![Fig. 4: Overall Performance (max-concurrent = 512)](attachment:45fb9c5f-9227-47c5-9442-5cd2c3e16648:image.png)
+![Fig. 4: Overall Performance (max-concurrent = 512)](https://github.com/user-attachments/assets/0bdcdcdf-d352-4b5d-b012-6159db6d1177)
 
 Fig. 4: Overall Performance (max-concurrent = 512)
 
@@ -321,7 +321,7 @@ Fig. 4: Overall Performance (max-concurrent = 512)
 
 Fig. 5 shows a sudden spike in Characters per Second followed by a plateau in Total Characters over Time, suggesting a temporary disruption. This may be attributed to external factors such as shared system usage or network instability, rather than limitations of the model itself.
 
-![Fig. 5: Overall Performance with Anomaly (max-concurrent = 512)](attachment:eac0d706-81d1-46ac-95c9-57b31f7ae0bc:image.png)
+![Fig. 5: Overall Performance with Anomaly (max-concurrent = 512)](https://github.com/user-attachments/assets/409e3021-660d-4c01-8b2b-488f0c318254)
 
 Fig. 5: Overall Performance with Anomaly (max-concurrent = 512)
 
@@ -331,7 +331,7 @@ Fig. 5: Overall Performance with Anomaly (max-concurrent = 512)
 
 ### **Error Message**:
 
-![截圖 2025-04-23 下午5.57.31.png](attachment:bb347157-6d36-4e5f-b908-66831d1656a8:%E6%88%AA%E5%9C%96_2025-04-23_%E4%B8%8B%E5%8D%885.57.31.png)
+![image](https://github.com/user-attachments/assets/54fbd4e5-017e-45c0-acaf-84edb80ed5b8)
 
 ### **Cause**:
 
@@ -366,7 +366,7 @@ The `.env` file was not properly loaded, resulting in one or more environment va
 
 ### **Error Message**:
 
-![截圖 2025-04-23 下午5.55.54.png](attachment:c34c2d90-f645-4234-a386-d764b16670f3:%E6%88%AA%E5%9C%96_2025-04-23_%E4%B8%8B%E5%8D%885.55.54.png)
+![image](https://github.com/user-attachments/assets/82f009c7-4314-4033-9595-b493b2d78b0d)
 
 ### **Cause**:
 
@@ -380,7 +380,7 @@ Provide one of the required arguments when running the command. Please refer to 
 
 ### Error Message:
 
-![截圖 2025-04-23 下午5.36.02.png](attachment:eef81ec9-906d-473f-8a55-0f801f5687d7:%E6%88%AA%E5%9C%96_2025-04-23_%E4%B8%8B%E5%8D%885.36.02.png)
+![image](https://github.com/user-attachments/assets/2c202e80-541e-42a3-b41c-9946b056ad15)
 
 ### **Cause**:
 
@@ -398,4 +398,4 @@ For issues, questions, or suggestions, please open a GitHub Issue or contact the
 
 You can find the full source code, test scripts, and issue tracker at:
 
-- [https://github.com/UnieAI/OpenAI-API-Performance-Metrics](https://github.com/UnieAI/OpenAI-API-Performance-Metrics)
+- [https://github.com/UnieAI/LLM-Metrics-Lab](https://github.com/UnieAI/LLM-Metrics-Lab)
