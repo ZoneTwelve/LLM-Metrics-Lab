@@ -332,8 +332,8 @@ class APIThroughputMonitor:
             async with httpx.AsyncClient(verify=False, timeout=180.0) as client:
                 async with client.stream("POST", f"{self.api_url}/chat/completions", headers=headers, json=payload) as response:
                     logger.debug(f"RESPONSE STATUS: {response.status_code}")
-                    payload_record = FileHandler(f"{self.output_dir}/in_{runtime_uuid}_{session_id}.json", "w", self.output_dir is None)
-                    output_record = FileHandler(f"{self.output_dir}/out_{runtime_uuid}_{session_id}.json", "w", self.output_dir is None)
+                    payload_record = FileHandler(f"{self.output_dir}/in_{runtime_uuid}_{session_id}.json", "w", True)
+                    output_record = FileHandler(f"{self.output_dir}/out_{runtime_uuid}_{session_id}.json", "w", True)
 
                     payload_record.write(json.dumps(payload))
                     payload_record.close()
