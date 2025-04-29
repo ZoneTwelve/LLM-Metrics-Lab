@@ -1,6 +1,4 @@
-import requests
 import asyncio
-import threading
 import time
 import json
 from datetime import datetime
@@ -9,8 +7,6 @@ from rich.live import Live
 from rich.table import Table
 from rich.console import Console
 from rich import box
-from concurrent.futures import ThreadPoolExecutor
-from queue import Queue
 import math
 from urllib3.exceptions import InsecureRequestWarning
 import urllib3
@@ -20,10 +16,11 @@ import uuid
 from utils.url import normalize_url
 from datasets import load_dataset
 import websockets
-from aiohttp import web
 import httpx
+from logger_config import setup_logger
 
-import logging
+logger = setup_logger(__name__)
+logger.info("WebSocket server started")
 
 class Template(str):
     pass
@@ -33,39 +30,7 @@ class Conversation(str):
 
 load_dotenv()
 
-# Configure logging level from environment variable
-# (Console/File) Log levels
-console_log_level = os.getenv("CLL", "info").upper()
-file_log_level = os.getenv("FLL", "").upper()
-
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-
-logger = logging.getLogger('Metrics')
-# logger.setLevel(getattr(logging, console_log_level, logging.DEBUG))
-
 runtime_uuid = str(uuid.uuid4()).replace("-", "")
-
-if "" != console_log_level:
-    # Add a console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(console_log_level)
-
-    # Define a formatter
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    console_handler.setFormatter(formatter)
-
-    # Add the handler to the logger
-    logger.addHandler(console_handler)
-
-if "" != file_log_level:
-    # Add a file handler
-    file_handler = logging.FileHandler("metrics.log")
-    file_handler.setLevel(file_log_level)
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
 
 # Suppress SSL warnings
 urllib3.disable_warnings(InsecureRequestWarning)
@@ -322,7 +287,6 @@ class APIThroughputMonitor:
     
 
     async def make_request(self, session_id):
-        # logger.info(f"👷 make_request START: session_id={session_id}")
         global count_id
         headers = {
             "Content-Type": "application/json",
@@ -368,7 +332,6 @@ class APIThroughputMonitor:
                         if line:
                             data = self.process_stream_info(line)
                             if data is None:
-                                # logger.info(f"Processing finished for session {session_id}")
                                 break
                             output_record.write(json.dumps(data) + "\n")
 
@@ -394,7 +357,6 @@ class APIThroughputMonitor:
                     "error": None
                 })
                 self.successful_requests += 1
-            # logger.info(f"✅ make_request END: session_id={session_id}")
         except Exception as e:
             async with self.lock:
                 logger.error(f"Error in session {session_id}: {str(e)}")
@@ -440,10 +402,8 @@ class APIThroughputMonitor:
                     if current_time - self.last_log_time >= 1.0:
                         await self.log_status()
 
-                    # logger.info(f"[run loop] active: {self.active_sessions}, max: {self.max_concurrent}")
                     if self.active_sessions < self.max_concurrent:
                         session_id += 1
-                        # logger.info(f"🚀 Launching make_request for session {session_id}")
                         async with self.lock:
                             self.active_sessions += 1
                         asyncio.create_task(self.make_request(session_id))
@@ -452,14 +412,21 @@ class APIThroughputMonitor:
 
                     await asyncio.sleep(0.1)
             finally:
-                logger.info("🛑 run() has ended (timeout or stopped).")
+                # Path to save log_file
+                file_info = {
+                    "status": "file",
+                    "fileName": self.log_file,
+                    "fileUrl": f"/downloads/{self.log_file}"
+                }
+                await websocket.send(json.dumps(file_info))
                 self.running = False
                 self._stop_requested = False
+                logger.info("🛑 run() has ended (timeout or stopped).")
+                logger.info(f"File Path: {file_info}")
 
     async def stop_monitor(self):
         self.running = False
         self._stop_requested = True
-        logger.info("🛑 Stop requested for monitor.")
 
 
 def load_dataset_as_questions(dataset_name: str, key: Template | Conversation):
@@ -547,8 +514,6 @@ async def websocket_handler(websocket):
                         log_file=log_file,
                         output_dir=output_dir
                     )
-                    logger.info(f"Created monitor with id: {id(monitor)}")
-                    logger.info(f"Sessions: {monitor.sessions}")
                     
                     # Start the monitor
                     logger.info("🚀 Starting API Throughput Monitor...")
@@ -558,7 +523,6 @@ async def websocket_handler(websocket):
                     monitor_task = asyncio.create_task(monitor.run(websocket, duration=time_limit))
 
             elif data.get("command") == "stop":
-                logger.info(f"STOP: {monitor}")
                 if monitor and monitor.running:
                     await monitor.stop_monitor()
                     if monitor_task:
@@ -609,15 +573,3 @@ async def monitor_cleaner():
                     logger.error(f"Error sending message to {websocket.remote_address}: {str(e)}")
                     
         await asyncio.sleep(0.5)
-
-
-async def main():
-    host = os.getenv("HOST", "0.0.0.0")
-    port = int(os.getenv("PORT", 8765))
-    server = await websockets.serve(websocket_handler, host, port)
-    print(f"WebSocket server running at ws://{host}:{port}")
-    asyncio.create_task(monitor_cleaner())
-    await server.wait_closed()
-
-if __name__ == "__main__":
-    asyncio.run(main())
