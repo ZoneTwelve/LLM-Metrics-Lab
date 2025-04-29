@@ -495,6 +495,7 @@
 
         function handleStatsUpdate(data) {
             const rows = data.sessions;
+            console.log(rows)
             const dashboard = data.dashboard;
         
             Object.entries(rows).forEach(([id, sessionData]) => {
@@ -508,7 +509,15 @@
                 session.status = sessionData.status;
                 session.chars = sessionData.total_chars;
                 session.chunks = sessionData.chunks_received;
-        
+
+                if(session.stopped){
+                    return
+                }
+
+                if (session.status === "Completed" || session.status === "Failed"){
+                    session.stopped = true;
+                }
+
                 if (sessionData.start_time) session.startTime = new Date(sessionData.start_time * 1000);
                 if (sessionData.first_token_latency) session.firstChunkTime = new Date((sessionData.start_time + sessionData.first_token_latency) * 1000);
                 if (sessionData.response_time && typeof sessionData.response_time === 'string') {
@@ -518,10 +527,10 @@
                         session.endTime = new Date((sessionData.start_time + seconds) * 1000);
                     }
                 }
-        
+
                 session.update();
             });
-        
+
             if (dashboard) {
                 updateDashboard(dashboard);
             }
@@ -749,6 +758,7 @@
             this.reader = null;
             this.decoder = new TextDecoder();
             this.error = null;
+            this.stopped = false;
         }
 
         // --- UI helpers ---

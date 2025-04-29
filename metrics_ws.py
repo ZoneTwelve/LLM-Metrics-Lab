@@ -18,6 +18,11 @@ from datasets import load_dataset
 import websockets
 import httpx
 from logger_config import setup_logger
+from pathlib import Path
+
+from config.settings import (
+    LOG_FILE_DIR,
+)
 
 logger = setup_logger(__name__)
 logger.info("WebSocket server started")
@@ -86,8 +91,10 @@ class APIThroughputMonitor:
         self._stop_requested = False
         
         # Initialize log file
-        with open(self.log_file, 'w') as f:
+        with open(Path(self.output_dir, self.log_file).resolve(), 'w') as f:
             f.write('')
+            f.close()
+        
     def get_session_status(self, session_id, info):
         status_style = {
             "Starting": "yellow",
@@ -218,9 +225,9 @@ class APIThroughputMonitor:
                 "first_token_latencies": ftls,
             }
             
-            with open(self.log_file, 'a') as f:
+            with open(Path(self.output_dir, self.log_file).resolve(), 'a') as f:
                 f.write(json.dumps(status) + '\n')
-            
+
             self.prev_total_chars = total_chars
             self.last_log_time = current_time
             
@@ -479,11 +486,14 @@ async def websocket_handler(websocket):
                     max_concurrent = int(params.get('max_concurrent', 5))
                     columns = int(params.get('columns', 3))
                     log_file = params.get('log_file', "api_monitor.jsonl")
-                    output_dir = params.get('output_dir')
+                    # output_dir = params.get('output_dir') # Dangerous, this might cause security issues like overwriting files or directories discovery
                     time_limit = int(params.get('time_limit', 10))
-                    dataset_name = params.get('dataset', "tatsu-lab/alpaca")
+                    dataset_name = params.get('dataset', "tatsu-lab/alpaca") # Dangours, use with caution
                     template_str = params.get('template')
                     conversation_str = params.get('conversation')
+
+                    # Load it from environment variables
+                    output_dir = LOG_FILE_DIR
 
                     # Create directories if needed
                     if output_dir and not os.path.exists(output_dir):

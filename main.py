@@ -1,6 +1,5 @@
 import os
 import asyncio
-from pathlib import Path
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -10,17 +9,25 @@ import websockets
 from metrics_ws import websocket_handler, monitor_cleaner
 from logger_config import setup_logger
 
+from config.settings import (
+    LOG_FILE_DIR,
+    STATIC_DIR,
+    HOST,
+    WS_PORT,
+    HTTP_PORT,
+)
+
 # --- Set logger ---
 logger = setup_logger(__name__)
 
 # --- FastAPI app ---
 app = FastAPI()
 
-# Assign static dir
-STATIC_DIR = Path("interface").resolve()
-LOG_FILE_DIR = Path(os.getenv("LOG_FILE_DIR", None)).resolve()
-
-app.mount("/downloads", StaticFiles(directory=LOG_FILE_DIR), name="downloads")
+try:
+    app.mount("/downloads", StaticFiles(directory=LOG_FILE_DIR), name="downloads")
+except Exception as e:
+    logger.error(f"Error mounting downloads directory: {e}, ")
+    raise RuntimeError(f"Please create the directory '{LOG_FILE_DIR}' manually.")
 
 # get web interface
 @app.get("/", response_class=HTMLResponse)
@@ -30,9 +37,9 @@ async def get_index():
 
 # Activate WebSocket and FastAPI
 async def main():
-    host = os.getenv("HOST", "0.0.0.0")
-    ws_port = int(os.getenv("WS_PORT", 8765))
-    http_port = int(os.getenv("HTTP_PORT", 8000))
+    host = HOST
+    ws_port = WS_PORT
+    http_port = HTTP_PORT
 
     # Activate WebSocket server
     ws_server = await websockets.serve(websocket_handler, host, ws_port)
