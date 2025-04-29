@@ -17,7 +17,10 @@ from utils.url import normalize_url
 from datasets import load_dataset
 import websockets
 import httpx
+
 from logger_config import setup_logger
+from visualize import APIMetricsVisualizer
+
 
 logger = setup_logger(__name__)
 logger.info("WebSocket server started")
@@ -62,13 +65,14 @@ class FileHandler:
         self.close()
 
 class APIThroughputMonitor:
-    def __init__(self, model: str, api_url: str, api_key: str, max_concurrent: int = 5, columns: int = 3, log_file: str = "api_monitor.jsonl", output_dir: str = None):
+    def __init__(self, model: str, api_url: str, api_key: str, max_concurrent: int = 5, columns: int = 3, log_file: str = "api_monitor.jsonl", plot_file: str = "api_metrics.png", output_dir: str = None):
         self.model = model
         self.api_url = api_url
         self.api_key = api_key
         self.max_concurrent = max_concurrent
         self.columns = columns
         self.log_file = log_file
+        self.plot_file = plot_file
         self.sessions = {}
         self.lock = asyncio.Lock()
         self.console = Console()
@@ -412,13 +416,30 @@ class APIThroughputMonitor:
 
                     await asyncio.sleep(0.1)
             finally:
-                # Path to save log_file
+                # Send log file to frontend
                 file_info = {
                     "status": "file",
                     "fileName": self.log_file,
                     "fileUrl": f"/downloads/{self.log_file}"
                 }
-                await websocket.send(json.dumps(file_info))
+                try:
+                    await websocket.send(json.dumps(file_info))
+                    logger.info(f"📦 Log file info sent to frontend.")
+                except Exception as e:
+                    logger.error(f"❌ Failed to send log file info to frontend: {e}")
+                # Generate charts
+                try:
+                    generate_visualization(self.log_file, self.plot_file)
+                    plot_info = {
+                        "status": "file",
+                        "fileName": self.plot_file,
+                        "fileUrl": f"/downloads/{self.plot_file}"
+                    }
+                    await websocket.send(json.dumps(plot_info))
+                    logger.info("📈 Visualization generated successfully.")
+                except Exception as e:
+                    logger.error(f"❌ Failed to generate visualization: {e}")
+                # Clean up states
                 self.running = False
                 self._stop_requested = False
                 logger.info("🛑 run() has ended (timeout or stopped).")
@@ -479,6 +500,7 @@ async def websocket_handler(websocket):
                     max_concurrent = int(params.get('max_concurrent', 5))
                     columns = int(params.get('columns', 3))
                     log_file = params.get('log_file', "api_monitor.jsonl")
+                    plot_file = params.get('plot_file', "api_metrics.png")
                     output_dir = params.get('output_dir')
                     time_limit = int(params.get('time_limit', 10))
                     dataset_name = params.get('dataset', "tatsu-lab/alpaca")
@@ -512,6 +534,7 @@ async def websocket_handler(websocket):
                         max_concurrent=max_concurrent,
                         columns=columns,
                         log_file=log_file,
+                        plot_file=plot_file,
                         output_dir=output_dir
                     )
                     
@@ -573,3 +596,7 @@ async def monitor_cleaner():
                     logger.error(f"Error sending message to {websocket.remote_address}: {str(e)}")
                     
         await asyncio.sleep(0.5)
+        
+def generate_visualization(log_file, plot_file):
+    visualizer = APIMetricsVisualizer(log_file)
+    visualizer.create_visualization(plot_file)

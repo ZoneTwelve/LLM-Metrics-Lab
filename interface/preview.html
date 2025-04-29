@@ -166,6 +166,7 @@
             color: #ffc107;
         }
         .file-container {
+            display: none;
             height: 100px;
             overflow-y: auto;
             background-color: #f8f9fa; /* 白底 */
@@ -369,11 +370,14 @@
                     <div class="card-header">
                         <i class="bi bi-folder2-open me-2"></i>Output File
                     </div>
-                    <div class="card-body">
-                        <div id="file-output" class="file-container">
-                            <!-- 動態加入檔案 -->
+                    <!-- <div class="card-body"> -->
+                        <!-- <div id="file-output" class="file-container">
+                            
+                        </div> -->
+                        <div id="file-output-placeholder" class="session-grid-empty">
+                            <i class="bi bi-info-circle me-2"></i>No files yet
                         </div>
-                    </div>
+                    <!-- </div> -->
                 </div>
             </div>
         </div>
@@ -1104,16 +1108,26 @@
         
         // Add donwload file button while get file from backend
         function updateFileSection(fileName, fileUrl) {
-            const fileContainer = document.getElementById('file-output');
+            const placeholder = document.getElementById('file-output-placeholder');
+            const fullUrl = window.location.origin + fileUrl;
             
+            // Add card for files section
+            if (placeholder) {
+                fileContainer = document.createElement('div');
+                fileContainer.classList.add('card-body');
+                fileContainer.id = 'file-output';
+                placeholder.replaceWith(fileContainer);
+            } else {
+                fileContainer = document.getElementById('file-output');
+            }
+            
+            // Add files
             const fileEntry = document.createElement('div');
             fileEntry.classList.add('file-entry');
         
             const fileNameElement = document.createElement('span');
             fileNameElement.textContent = fileName;
 
-            const fullUrl = window.location.origin + fileUrl;
-        
             const downloadButton = document.createElement('a');
             downloadButton.href = fullUrl;
             downloadButton.setAttribute('download', fileName);
@@ -1123,6 +1137,25 @@
             fileEntry.appendChild(fileNameElement);
             fileEntry.appendChild(downloadButton);
             fileContainer.appendChild(fileEntry);
+
+            if (fileName.endsWith('.png')) {
+                const imageWrapper = document.createElement('div');
+                imageWrapper.classList.add('mt-4');
+            
+                const caption = document.createElement('h5');
+                caption.textContent = "📈 API Metrics Visualization";
+                caption.className = "text-muted mb-2";
+
+                const img = document.createElement('img');
+                img.src = fullUrl;
+                img.alt = "API Metrics Visualization";
+                img.className = "img-fluid rounded shadow mb-3";
+                img.style.maxWidth = "100%";
+            
+                imageWrapper.appendChild(caption);
+                imageWrapper.appendChild(img);
+                fileContainer.appendChild(imageWrapper);
+            }
         }
 
         // updateFileSection('example.txt', '/downloads/example.txt');
