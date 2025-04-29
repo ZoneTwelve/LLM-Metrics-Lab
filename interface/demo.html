@@ -165,31 +165,6 @@
         .log-warning {
             color: #ffc107;
         }
-        .file-container {
-            display: none;
-            height: 100px;
-            overflow-y: auto;
-            background-color: #f8f9fa; /* 白底 */
-            color: #212529; /* 深灰文字 */
-            padding: 10px;
-            border-radius: 5px;
-            font-family: monospace;
-            border: 1px solid #dee2e6;
-        }
-        .file-entry {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 0;
-            border-bottom: 1px solid #f1f1f1;
-        }
-        .file-entry:last-child {
-            border-bottom: none;
-        }
-        .file-entry span {
-            margin-right: 10px;
-            word-break: break-all;
-        }
         .nav-tabs .nav-link {
             color: #495057;
         }
@@ -367,24 +342,6 @@
         <div class="row mt-4">
             <div class="col-md-12">
                 <div class="card">
-                    <div class="card-header">
-                        <i class="bi bi-folder2-open me-2"></i>Output File
-                    </div>
-                    <!-- <div class="card-body"> -->
-                        <!-- <div id="file-output" class="file-container">
-                            
-                        </div> -->
-                        <div id="file-output-placeholder" class="session-grid-empty">
-                            <i class="bi bi-info-circle me-2"></i>No files yet
-                        </div>
-                    <!-- </div> -->
-                </div>
-            </div>
-        </div>
-
-        <div class="row mt-4">
-            <div class="col-md-12">
-                <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <div>
                             <i class="bi bi-speedometer2 me-2"></i>Monitoring Dashboard
@@ -483,117 +440,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-
-    <script>
-        // WebSocket integration for preview.html frontend
-        const wsUrl = 'ws://localhost:8765';
-        let ws;
-        const sessions = {};
-        
-        function updateDashboard(stats) {
-            document.getElementById('active-sessions').innerText = stats.active;
-            document.getElementById('total-requests').innerText = stats.total;
-            document.getElementById('success-rate').innerText = stats.success_rate.toFixed(2) + "%";
-            document.getElementById('chars-per-second').innerText = stats.chars_per_sec.toFixed(2) + " chars/s";
-        }
-
-        function handleStatsUpdate(data) {
-            const rows = data.sessions;
-            console.log(rows)
-            const dashboard = data.dashboard;
-        
-            Object.entries(rows).forEach(([id, sessionData]) => {
-                let session = sessions[id];
-                if (!session) {
-                    session = new Session(id, '', '', '', '');
-                    sessions[id] = session;
-                    document.getElementById('sessions-grid').appendChild(session.sessionCard.card);
-                }
-        
-                session.status = sessionData.status;
-                session.chars = sessionData.total_chars;
-                session.chunks = sessionData.chunks_received;
-
-                if(session.stopped){
-                    return
-                }
-
-                if (session.status === "Completed" || session.status === "Failed"){
-                    session.stopped = true;
-                }
-
-                if (sessionData.start_time) session.startTime = new Date(sessionData.start_time * 1000);
-                if (sessionData.first_token_latency) session.firstChunkTime = new Date((sessionData.start_time + sessionData.first_token_latency) * 1000);
-                if (sessionData.response_time && typeof sessionData.response_time === 'string') {
-                    // response_time 是 "3.41s" 這種字串，要 parse 成數字
-                    const seconds = parseFloat(sessionData.response_time.replace('s', ''));
-                    if (!isNaN(seconds)) {
-                        session.endTime = new Date((sessionData.start_time + seconds) * 1000);
-                    }
-                }
-
-                session.update();
-            });
-
-            if (dashboard) {
-                updateDashboard(dashboard);
-            }
-        }
-        
-
-        
-        function connectWS() {
-            ws = new WebSocket(wsUrl);
-            // Open Websocket connection
-            ws.onopen = () => {
-                addLogEntry('success', 'WebSocket connected');
-            };
-            // Close Websocket connection
-            ws.onclose = () => {
-                addLogEntry('success', 'WebSocket disconnected');
-            };
-            // Handle Websocket messages
-            ws.onmessage = event => {
-                const msg = JSON.parse(event.data);
-                handleMessage(msg);
-            };
-        }
-
-        const messageHandlers = {
-            'stats_update': handleStatsUpdateMessage,
-            'completed': handleCompletedMessage,
-            'file': handleFileMessage
-        };
-
-        function handleMessage(msg) {
-            const handler = messageHandlers[msg.status] || handleUnknownMessage;
-            handler(msg);
-        }
-
-        // Update sessions states and dashboard
-        function handleStatsUpdateMessage(msg) {
-            handleStatsUpdate(msg.data);
-        }
-        // Handle websocket-run complete message
-        function handleCompletedMessage(msg) {
-            isRunning = false;
-            document.getElementById('start-btn').disabled = false;
-            document.getElementById('stop-btn').disabled = true;
-            document.getElementById('status-indicator').className = 'status-indicator status-stopped';
-            document.getElementById('status-text').textContent = 'Completed';
-        }
-        // Handle file
-        function handleFileMessage(msg) {
-            addLogEntry('success', 'Recieve File.');
-            updateFileSection(msg.fileName, msg.fileUrl);
-        }
-        // Handle unknown message
-        function handleUnknownMessage(msg) {
-            console.warn('Unknown message type:', msg);
-        }
-        
-        connectWS();
-    </script>
     <script>
         // TODO: add logs into all the function with different log level
         // TODO: allow user downloads the logs
@@ -762,7 +608,6 @@
             this.reader = null;
             this.decoder = new TextDecoder();
             this.error = null;
-            this.stopped = false;
         }
 
         // --- UI helpers ---
@@ -991,7 +836,6 @@
         // Start button click handler
         document.getElementById('start-btn').addEventListener('click', function() {
             const configModal = new bootstrap.Modal(document.getElementById('configModal'));
-            resetDashboard();
             
             // Populate summary fields
             document.getElementById('summary-api-url').textContent = document.getElementById('api-url').value || 'https://api.openai.com/v1 (Not specified)';
@@ -1024,152 +868,32 @@
             // Add log entry
             addLogEntry('info', 'Starting API Throughput Monitor...');
 
-            runBenchmark();
+            runBenchmark()
         });
 
-        // Stop button click handler
-        document.getElementById('stop-btn').addEventListener('click', function() {
-            // Update UI to show stopped state
-            document.getElementById('status-indicator').className = 'status-indicator status-stopped';
-            document.getElementById('status-text').textContent = 'Stopped';
-            document.getElementById('start-btn').disabled = false;
-            document.getElementById('stop-btn').disabled = true;
-            
-            // Add log entry
-            addLogEntry('info', 'Stopping API Throughput Monitor...');
-            
-            sendStopCommand();
-        });
-
-        let isRunning = false;
         function runBenchmark(){
-            if (isRunning) {
-                addLogEntry('warn', 'Benchmark is already running.');
+            if(globalMonitor && globalMonitor.status !== "Stop"){
                 return;
             }
-        
-            isRunning = true;
             let model = document.getElementById('model').value || 'Not specified'
             let api_url = document.getElementById('api-url').value || 'https://api.openai.com/v1)'
             let api_key = document.getElementById('api-key').value || '';
             let max_concurrent = parseInt(document.getElementById('max-concurrent').value) // TODO: value check
             let time_limit = parseInt(document.getElementById('time-limit').value)
             let datasets = document.getElementById('dataset-name').value
-            // TODO: replace this creation with WebSocket connection info.
-
-            // const sessionGrid = document.getElementById('sessions-grid');
-            // sessionGrid.innerHTML = ""; // Clear previous sessions
-
-            const sessionCard = document.getElementById('sessions-grid');
-            sessionCard.innerHTML = "";
-
-            for(let session in Object.keys(sessions)){
-                // sessions[session].status = "Stop"
-                // sessions[session].update()
-                delete sessions[session]
-            }
-
-            const params = {
-                command: 'start',
-                params: {
-                    model: document.getElementById('model').value,
-                    api_url: document.getElementById('api-url').value,
-                    max_concurrent: parseInt(document.getElementById('max-concurrent').value),
-                    time_limit: parseInt(document.getElementById('time-limit').value),
-                    dataset: document.getElementById('dataset-name').value,
-                    template: document.getElementById('template').value
-                }
-            };
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify(params));
-                addLogEntry('info', 'Sent start command.');
-            } else {
-                addLogEntry('error', 'WebSocket not connected.');
-            }
+            globalMonitor = new APIThroughputMonitor(
+                model,
+                api_url,
+                api_key,
+                max_concurrent,
+                time_limit,
+                datasets,
+            )
+            console.log("Run")
+            const sessionGrid = document.getElementById('sessions-grid');
+            sessionGrid.innerHTML = ""; // Clear previous sessions
+            globalMonitor.run()
         }
-        
-        function sendStopCommand() {
-            isRunning = false;
-            if (ws.readyState === WebSocket.OPEN) {
-              ws.send(JSON.stringify({
-                command: "stop"
-              }));
-              addLogEntry('info', 'Sent stop command.');
-            } else {
-              addLogEntry('warn', '🛑 Cannot send stop, connection not open.');
-            }
-        }
-
-        function resetDashboard() {
-            init_stats = {"active": 0,
-                          "total": 0,
-                          "success_rate": 0,
-                          "chars_per_sec": 0
-            }
-            updateDashboard(init_stats)
-
-            const sessionsGrid = document.getElementById('sessions-grid');
-            sessionsGrid.innerHTML = "";
-            const emptyMessage = document.createElement('div');
-            emptyMessage.classList.add('session-grid-empty');
-            emptyMessage.innerHTML = '<i class="bi bi-info-circle me-2"></i>No sessions yet';
-            sessionsGrid.appendChild(emptyMessage);
-        }
-        
-        // Add donwload file button while get file from backend
-        function updateFileSection(fileName, fileUrl) {
-            const placeholder = document.getElementById('file-output-placeholder');
-            const fullUrl = window.location.origin + fileUrl;
-            
-            // Add card for files section
-            if (placeholder) {
-                fileContainer = document.createElement('div');
-                fileContainer.classList.add('card-body');
-                fileContainer.id = 'file-output';
-                placeholder.replaceWith(fileContainer);
-            } else {
-                fileContainer = document.getElementById('file-output');
-            }
-            
-            // Add files
-            const fileEntry = document.createElement('div');
-            fileEntry.classList.add('file-entry');
-        
-            const fileNameElement = document.createElement('span');
-            fileNameElement.textContent = fileName;
-
-            const downloadButton = document.createElement('a');
-            downloadButton.href = fullUrl;
-            downloadButton.setAttribute('download', fileName);
-            downloadButton.classList.add('btn', 'btn-outline-secondary', 'btn-sm', 'download-btn');
-            downloadButton.innerHTML = '<i class="bi bi-download me-1"></i>Download';
-        
-            fileEntry.appendChild(fileNameElement);
-            fileEntry.appendChild(downloadButton);
-            fileContainer.appendChild(fileEntry);
-
-            if (fileName.endsWith('.png')) {
-                const imageWrapper = document.createElement('div');
-                imageWrapper.classList.add('mt-4');
-            
-                const caption = document.createElement('h5');
-                caption.textContent = "📈 API Metrics Visualization";
-                caption.className = "text-muted mb-2";
-
-                const img = document.createElement('img');
-                img.src = fullUrl;
-                img.alt = "API Metrics Visualization";
-                img.className = "img-fluid rounded shadow mb-3";
-                img.style.maxWidth = "100%";
-            
-                imageWrapper.appendChild(caption);
-                imageWrapper.appendChild(img);
-                fileContainer.appendChild(imageWrapper);
-            }
-        }
-
-        // updateFileSection('example.txt', '/downloads/example.txt');
-        // updateFileSection('example2.txt', '/downloads/example.txt');
 
         
         async function fetchModel() {
@@ -1183,23 +907,12 @@
             const modelInput = document.getElementById("model");
             select.classList.add('d-none');
             select.innerHTML = "";
-            if (!apiUrl && !apiKey) {
+            if (!apiUrl || !apiKey) {
                 addLogEntry('error', 'API URL and API Key are required to fetch models!');
                 btn.disabled = false;
                 btn.innerHTML = `<i class="bi bi-cloud-download"></i> Fetch Models`;
                 return;
-            } else if (!apiUrl) {
-                addLogEntry('error', 'API URL are required to fetch models!');
-                btn.disabled = false;
-                btn.innerHTML = `<i class="bi bi-cloud-download"></i> Fetch Models`;
-                return;
-            } else if (!apiKey) {
-                addLogEntry('error', 'API Key are required to fetch models!');
-                btn.disabled = false;
-                btn.innerHTML = `<i class="bi bi-cloud-download"></i> Fetch Models`;
-                return;
             }
-            
             try {
                 const response = await fetch(`${apiUrl}/models`, {
                     method: 'GET',
