@@ -488,7 +488,7 @@ def load_dataset_as_questions(dataset_name: str, key: Template | Conversation):
     return ret
 
 async def websocket_handler(websocket):
-    global monitor, monitor_task, connected_clients, count_id
+    global monitor, monitor_task, connected_clients, count_id, questions
     
     logger.info(f"Client connected: {websocket.remote_address}")
     connected_clients.add(websocket)
@@ -510,6 +510,7 @@ async def websocket_handler(websocket):
                     params = data.get("params", {})
                     model = params.get('model', os.getenv('MODEL', 'gpt-3.5-turbo'))
                     api_url = normalize_url(params.get('api_url', os.environ.get('API_URL')))
+                    api_key = params.get('api_key', os.environ.get('OPENAI_API_KEY'))
                     max_concurrent = int(params.get('max_concurrent', 5))
                     columns = int(params.get('columns', 3))
                     # log_file = params.get('log_file', "api_monitor.jsonl")
@@ -530,8 +531,7 @@ async def websocket_handler(websocket):
                         os.makedirs(output_dir)
                     
                     # Set up the monitor
-                    global questions
-                    api_key = os.environ.get('OPENAI_API_KEY')
+                    
                     
                     # Load dataset
                     logger.info(f"Loading dataset '{dataset_name}' with template '{template_str}' or conversation '{conversation_str}'")
