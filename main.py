@@ -7,7 +7,7 @@ import uvicorn
 import websockets
 
 from metrics_ws import websocket_handler, monitor_cleaner
-from logger_config import setup_logger
+from utils.logger_config import setup_logger
 
 from config.settings import (
     LOG_FILE_DIR,

@@ -18,7 +18,7 @@ from datasets import load_dataset
 import websockets
 import httpx
 
-from logger_config import setup_logger
+from utils.logger_config import setup_logger
 from pathlib import Path
 
 from config.settings import (
