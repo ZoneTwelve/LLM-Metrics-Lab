@@ -166,4 +166,5 @@ api_metrics.png
 api_monitor.jsonl
 
 .DS_Store
-*.jsoninterface/index.html
+*.json
+interface/index.html
