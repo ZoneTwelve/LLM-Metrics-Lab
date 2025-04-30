@@ -164,3 +164,7 @@ cython_debug/
 outputs/
 api_metrics.png
 api_monitor.jsonl
+
+.DS_Store
+*.json
+interface/index.html

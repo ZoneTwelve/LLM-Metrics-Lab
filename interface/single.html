@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chat Assistant</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.3/font/bootstrap-icons.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .chat-container {
+            height: calc(100vh - 180px);
+            overflow-y: auto;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .message {
+            margin-bottom: 15px;
+            max-width: 80%;
+        }
+        .user-message {
+            margin-left: auto;
+            background-color: #007bff;
+            color: white;
+            border-radius: 15px 15px 0 15px;
+            padding: 10px 15px;
+        }
+        .ai-message {
+            background-color: #e9ecef;
+            color: #212529;
+            border-radius: 15px 15px 15px 0;
+            padding: 10px 15px;
+        }
+        .message-time {
+            font-size: 0.75rem;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+        .typing-indicator {
+            display: inline-block;
+            width: 50px;
+        }
+        .typing-indicator span {
+            height: 8px;
+            width: 8px;
+            float: left;
+            margin: 0 1px;
+            background-color: #6c757d;
+            display: block;
+            border-radius: 50%;
+            opacity: 0.4;
+        }
+        .typing-indicator span:nth-of-type(1) {
+            animation: 1s blink infinite 0.3333s;
+        }
+        .typing-indicator span:nth-of-type(2) {
+            animation: 1s blink infinite 0.6666s;
+        }
+        .typing-indicator span:nth-of-type(3) {
+            animation: 1s blink infinite 0.9999s;
+        }
+        @keyframes blink {
+            50% {
+                opacity: 1;
+            }
+        }
+        .settings-panel {
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+        .api-key-status {
+            font-size: 0.8rem;
+            margin-top: 5px;
+        }
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1050;
+        }
+        .input-group {
+            margin-bottom: 10px;
+        }
+        .btn-clear {
+            margin-left: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container py-4">
+        <div class="row mb-4">
+            <div class="col-12">
+                <h1 class="text-center mb-0">AI Chat Assistant</h1>
+                <p class="text-center text-muted">Powered by ZoneTwelve</p>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-9 mb-4">
+                <div class="chat-container p-3" id="chatContainer">
+                    <div class="text-center text-muted py-5">
+                        <i class="bi bi-chat-dots" style="font-size: 3rem;"></i>
+                        <p class="mt-3">Start a conversation with the AI assistant</p>
+                    </div>
+                </div>
+                
+                <div class="input-group mt-3">
+                    <input type="text" id="messageInput" class="form-control" placeholder="Type your message here..." aria-label="Message">
+                    <button class="btn btn-primary" type="button" id="sendButton">
+                        <i class="bi bi-send"></i> Send
+                    </button>
+                    <button class="btn btn-outline-danger" type="button" id="clearButton">
+                        <i class="bi bi-trash"></i> Clear
+                    </button>
+                </div>
+            </div>
+            
+            <div class="col-md-3">
+                <div class="settings-panel mb-4">
+                    <h5><i class="bi bi-gear"></i> Settings</h5>
+                    <div class="mb-3">
+                        <label for="apiKeyInput" class="form-label">OpenAI API Key</label>
+                        <input type="password" class="form-control" id="apiKeyInput" placeholder="Enter your API key">
+                        <div class="api-key-status text-muted" id="apiKeyStatus"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="apiUrlInput" class="form-label">API URL</label>
+                        <input type="text" class="form-control" id="apiUrlInput" placeholder="Enter API URL (default: https://api.openai.com/v1)" value="https://api.openai.com/v1">
+                    </div>
+                    <div class="mb-3">
+                        <label for="modelSelect" class="form-label">Model</label>
+                        <input type="text" class="form-control" id="modelSelect" placeholder="Enter a model name (e.g. gpt-3.5-turbo)">
+                    </div>
+                    <button class="btn btn-outline-primary w-100" id="saveSettingsBtn">
+                        <i class="bi bi-save"></i> Save Settings
+                    </button>
+                </div>
+                
+                <div class="settings-panel">
+                    <h5><i class="bi bi-info-circle"></i> About</h5>
+                    <p class="text-muted small">
+                        This chat application uses the OpenAI API to provide AI-powered conversations.
+                        Your messages are sent to Target servers for processing.
+                    </p>
+                    <p class="text-muted small">
+                        <strong>Note:</strong> Your API key is stored locally on your device and is not sent to any server.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast notifications -->
+    <div class="toast-container">
+        <div class="toast align-items-center text-white bg-danger border-0" role="alert" aria-live="assertive" aria-atomic="true" id="errorToast">
+            <div class="d-flex">
+                <div class="toast-body">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <span id="errorMessage">An error occurred</span>
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+        
+        <div class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true" id="successToast">
+            <div class="d-flex">
+                <div class="toast-body">
+                    <i class="bi bi-check-circle-fill me-2"></i>
+                    <span id="successMessage">Settings saved successfully</span>
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // DOM elements
+            const chatContainer = document.getElementById('chatContainer');
+            const messageInput = document.getElementById('messageInput');
+            const sendButton = document.getElementById('sendButton');
+            const clearButton = document.getElementById('clearButton');
+            const apiKeyInput = document.getElementById('apiKeyInput');
+            const apiUrlInput = document.getElementById('apiUrlInput');
+            const modelSelect = document.getElementById('modelSelect');
+            const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+            const apiKeyStatus = document.getElementById('apiKeyStatus');
+            const errorToast = new bootstrap.Toast(document.getElementById('errorToast'));
+            const successToast = new bootstrap.Toast(document.getElementById('successToast'));
+            const errorMessage = document.getElementById('errorMessage');
+            const successMessage = document.getElementById('successMessage');
+            
+            // Load saved settings
+            loadSettings();
+            
+            // Event listeners
+            sendButton.addEventListener('click', sendMessage);
+            messageInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+            clearButton.addEventListener('click', clearConversation);
+            saveSettingsBtn.addEventListener('click', saveSettings);
+            
+            // Functions
+            function loadSettings() {
+                const savedApiKey = localStorage.getItem('openai_api_key');
+                const savedModel = localStorage.getItem('openai_model') || 'gpt-3.5-turbo';
+                const savedApiUrl = localStorage.getItem('openai_api_url') || 'https://api.openai.com/v1';
+                
+                if (savedApiKey) {
+                    apiKeyInput.value = savedApiKey;
+                    apiUrlInput.value = savedApiUrl;
+                    apiKeyStatus.textContent = 'API key loaded';
+                    apiKeyStatus.className = 'api-key-status text-success';
+                } else {
+                    apiKeyStatus.textContent = 'No API key saved';
+                    apiKeyStatus.className = 'api-key-status text-muted';
+                }
+                
+                modelSelect.value = savedModel;
+            }
+            
+            function saveSettings() {
+                const apiKey = apiKeyInput.value.trim();
+                const apiUrl = apiUrlInput.value.trim() || 'https://api.openai.com/v1';
+                const model = modelSelect.value;
+                
+                if (apiKey) {
+                    localStorage.setItem('openai_api_key', apiKey);
+                    localStorage.setItem('openai_api_url', apiUrl);
+                    apiKeyStatus.textContent = 'API key saved';
+                    apiKeyStatus.className = 'api-key-status text-success';
+                    successMessage.textContent = 'Settings saved successfully';
+                    successToast.show();
+                } else {
+                    localStorage.removeItem('openai_api_key');
+                    localStorage.removeItem('openai_api_url');
+                    apiKeyStatus.textContent = 'No API key saved';
+                    apiKeyStatus.className = 'api-key-status text-muted';
+                    errorMessage.textContent = 'API key cannot be empty';
+                    errorToast.show();
+                }
+                
+                localStorage.setItem('openai_model', model);
+            }
+            
+            function sendMessage() {
+                const message = messageInput.value.trim();
+                if (!message) return;
+                
+                // Clear input and add user message to chat
+                messageInput.value = '';
+                addMessageToChat(message, 'user');
+                
+                // Get settings
+                const apiKey = localStorage.getItem('openai_api_key');
+                const apiUrl = localStorage.getItem('openai_api_url') || 'https://api.openai.com/v1';
+                const model = localStorage.getItem('openai_model') || 'gpt-3.5-turbo';
+                
+                if (!apiKey) {
+                    errorMessage.textContent = 'Please enter your OpenAI API key in settings';
+                    errorToast.show();
+                    return;
+                }
+                
+                // Add typing indicator
+                addTypingIndicator();
+                
+                // Make API request
+                makeChatRequest(message, model, apiKey, apiUrl);
+            }
+            
+            function clearConversation() {
+                // Remove all messages from the chat container
+                while (chatContainer.firstChild) {
+                    chatContainer.removeChild(chatContainer.firstChild);
+                }
+                
+                // Add the welcome message back
+                const welcomeDiv = document.createElement('div');
+                welcomeDiv.className = 'text-center text-muted py-5';
+                welcomeDiv.innerHTML = `
+                    <i class="bi bi-chat-dots" style="font-size: 3rem;"></i>
+                    <p class="mt-3">Start a conversation with the AI assistant</p>
+                `;
+                chatContainer.appendChild(welcomeDiv);
+                
+                // Show success message
+                successMessage.textContent = 'Conversation cleared successfully';
+                successToast.show();
+            }
+            
+            function addMessageToChat(message, sender) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${sender}-message`;
+                messageDiv.textContent = message;
+                
+                const timeDiv = document.createElement('div');
+                timeDiv.className = 'message-time';
+                timeDiv.textContent = new Date().toLocaleTimeString();
+                
+                const wrapperDiv = document.createElement('div');
+                wrapperDiv.appendChild(messageDiv);
+                wrapperDiv.appendChild(timeDiv);
+                
+                chatContainer.appendChild(wrapperDiv);
+                scrollToBottom();
+            }
+            
+            function addTypingIndicator() {
+                const indicatorDiv = document.createElement('div');
+                indicatorDiv.className = 'message ai-message typing-indicator-container';
+                
+                const typingDiv = document.createElement('div');
+                typingDiv.className = 'typing-indicator';
+                typingDiv.innerHTML = '<span></span><span></span><span></span>';
+                
+                indicatorDiv.appendChild(typingDiv);
+                indicatorDiv.id = 'typingIndicator';
+                
+                chatContainer.appendChild(indicatorDiv);
+                scrollToBottom();
+            }
+            
+            function removeTypingIndicator() {
+                const indicator = document.getElementById('typingIndicator');
+                if (indicator) {
+                    indicator.remove();
+                }
+            }
+            
+            function scrollToBottom() {
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+            
+            async function makeChatRequest(message, model, apiKey, apiUrl) {
+                try {
+                    const response = await fetch(`${apiUrl}/chat/completions`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${apiKey}`
+                        },
+                        body: JSON.stringify({
+                            model: model,
+                            stream: true,
+                            messages: [
+                                {
+                                    role: "user",
+                                    content: message
+                                }
+                            ]
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        let errorText = 'Error with API request';
+                        try {
+                            const errorData = await response.json();
+                            errorText = errorData.error?.message || errorText;
+                        } catch (e) {
+                            errorText = await response.text();
+                        }
+                        throw new Error(errorText);
+                    }
+                    
+                    // Handle streaming response
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    let aiMessage = '';
+                    
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        
+                        const chunk = decoder.decode(value, { stream: true });
+                        const lines = chunk.split(/\r?\n/);
+                        
+                        for (const line of lines) {
+                            if (line) {
+                                const content = processStreamLine(line);
+                                if (content) {
+                                    aiMessage += content;
+                                    // Update the typing indicator with the current message
+                                    const indicator = document.getElementById('typingIndicator');
+                                    if (indicator) {
+                                        indicator.innerHTML = aiMessage;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Replace typing indicator with final message
+                    removeTypingIndicator();
+                    if (aiMessage) {
+                        addMessageToChat(aiMessage, 'ai');
+                    }
+                    
+                } catch (error) {
+                    removeTypingIndicator();
+                    errorMessage.textContent = error.message || 'Failed to get response from AI';
+                    errorToast.show();
+                    console.error('Error:', error);
+                }
+            }
+            
+            function processStreamLine(line) {
+                try {
+                    // Remove the "data: " prefix if it exists
+                    if (line.startsWith('data: ')) {
+                        line = line.slice(6);
+                    }
+                    
+                    // Parse the JSON content
+                    if (line.trim() === '[DONE]') {
+                        return null;
+                    }
+                    
+                    const data = JSON.parse(line);
+                    
+                    // Extract the content from the response structure
+                    if (data.choices && data.choices.length > 0) {
+                        if (data.choices[0].delta && data.choices[0].delta.content) {
+                            return data.choices[0].delta.content;
+                        }
+                    }
+                    
+                    return null;
+                } catch (e) {
+                    console.error('Error processing line:', e);
+                    return null;
+                }
+            }
+        });
+    </script>
+</body>
+</html>

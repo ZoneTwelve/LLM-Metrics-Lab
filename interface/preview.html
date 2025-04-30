@@ -1,0 +1,1249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Throughput Monitor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            padding-bottom: 60px;
+        }
+        .card {
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .card-header {
+            background-color: #f1f3f5;
+            border-bottom: 1px solid #dee2e6;
+            font-weight: 600;
+        }
+        .btn-primary {
+            background-color: #0d6efd;
+            border-color: #0d6efd;
+        }
+        .btn-primary:hover {
+            background-color: #0b5ed7;
+            border-color: #0a58ca;
+        }
+        .form-control:focus {
+            border-color: #86b7fe;
+            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+        }
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+        .status-running {
+            background-color: #28a745;
+        }
+        .status-stopped {
+            background-color: #dc3545;
+        }
+        .session-card {
+            border-radius: 8px;
+            border-left: 4px solid #0d6efd;
+            transition: transform 0.2s, box-shadow 0.2s;
+            height: 100%;
+        }
+        .session-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+        }
+        .session-card.status-starting {
+            border-left-color: #ffc107;
+        }
+        .session-card.status-processing {
+            border-left-color: #0d6efd;
+        }
+        .session-card.status-completed {
+            border-left-color: #198754;
+        }
+        .session-card.status-failed {
+            border-left-color: #dc3545;
+        }
+        .session-header {
+            background-color: #f8f9fa;
+            border-radius: 8px 8px 0 0;
+            padding: 10px 15px;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .session-body {
+            padding: 15px;
+        }
+        .session-footer {
+            background-color: #f8f9fa;
+            border-radius: 0 0 8px 8px;
+            padding: 10px 15px;
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+        .session-id {
+            font-family: monospace;
+            font-weight: 600;
+        }
+        .session-status {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .status-starting {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .status-processing {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+        .status-completed {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status-failed {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0;
+        }
+        .metric-label {
+            font-size: 0.9rem;
+            color: #6c757d;
+            margin-bottom: 0;
+        }
+        .session-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1rem;
+        }
+        .session-grid-empty {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 2rem;
+            color: #6c757d;
+        }
+        .monitor-container {
+            height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            background-color: #212529;
+            color: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+            border-bottom: 1px solid #495057;
+            padding-bottom: 5px;
+        }
+        .log-time {
+            color: #6c757d;
+        }
+        .log-info {
+            color: #0d6efd;
+        }
+        .log-success {
+            color: #28a745;
+        }
+        .log-error {
+            color: #dc3545;
+        }
+        .log-warning {
+            color: #ffc107;
+        }
+        .file-container {
+            display: none;
+            height: 100px;
+            overflow-y: auto;
+            background-color: #f8f9fa; /* 白底 */
+            color: #212529; /* 深灰文字 */
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            border: 1px solid #dee2e6;
+        }
+        .file-entry {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f1f1f1;
+        }
+        .file-entry:last-child {
+            border-bottom: none;
+        }
+        .file-entry span {
+            margin-right: 10px;
+            word-break: break-all;
+        }
+        .nav-tabs .nav-link {
+            color: #495057;
+        }
+        .nav-tabs .nav-link.active {
+            color: #0d6efd;
+            font-weight: 600;
+        }
+        .config-value {
+            font-family: monospace;
+            background-color: #e9ecef;
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+        .help-icon {
+            cursor: pointer;
+            color: #6c757d;
+        }
+        .tooltip-inner {
+            max-width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-speedometer2 me-2"></i>
+                API Throughput Monitor
+            </a>
+            <div class="ms-auto d-flex align-items-center">
+                <div class="me-3">
+                    <span id="status-indicator" class="status-indicator status-stopped"></span>
+                    <span id="status-text">Stopped</span>
+                </div>
+                <button id="start-btn" class="btn btn-primary btn-sm">
+                    <i class="bi bi-play-fill"></i> Start
+                </button>
+                <button id="stop-btn" class="btn btn-danger btn-sm ms-2" disabled>
+                    <i class="bi bi-stop-fill"></i> Stop
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-gear-fill me-2"></i>Configuration
+                    </div>
+                    <div class="card-body">
+                        <ul class="nav nav-tabs" id="configTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="basic-tab" data-bs-toggle="tab" data-bs-target="#basic" type="button" role="tab" aria-controls="basic" aria-selected="true">Basic</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="advanced-tab" data-bs-toggle="tab" data-bs-target="#advanced" type="button" role="tab" aria-controls="advanced" aria-selected="false">Advanced</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="dataset-tab" data-bs-toggle="tab" data-bs-target="#dataset" type="button" role="tab" aria-controls="dataset" aria-selected="false">Dataset</button>
+                            </li>
+                        </ul>
+                        <div class="tab-content p-3" id="configTabsContent">
+                            <div class="tab-pane fade show active" id="basic" role="tabpanel" aria-labelledby="basic-tab">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label for="api-url" class="form-label">API URL <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="The base URL of the API endpoint to test"></i></label>
+                                        <input type="text" class="form-control" id="api-url" placeholder="https://api.openai.com/v1">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="api-key" class="form-label">API Key <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="Your API authentication key"></i></label>
+                                        <input type="password" class="form-control" id="api-key" placeholder="sk-...">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="model" class="form-label">
+                                            Model
+                                            <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="The model to use for API requests"></i>
+                                            <button type="button" id="fetch-models-btn" class="btn btn-sm btn-outline-secondary ms-2" title="Fetch available models">
+                                                <i class="bi bi-cloud-download"></i> Fetch Models
+                                            </button>
+                                        </label>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" id="model" value="gpt-3.5-turbo">
+                                            <select class="form-select d-none" id="model-list"></select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="time-limit" class="form-label">Time Limit (seconds) <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="Duration in seconds to run the monitor"></i></label>
+                                        <input type="number" class="form-control" id="time-limit" value="120" min="10" max="3600">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="tab-pane fade" id="advanced" role="tabpanel" aria-labelledby="advanced-tab">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label for="max-concurrent" class="form-label">Max Concurrent Requests <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="Maximum number of concurrent API requests"></i></label>
+                                        <input type="number" class="form-control" id="max-concurrent" value="10" min="1" max="100">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="log-file" class="form-label">Log File <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="Path to the log file for monitoring data"></i></label>
+                                        <input type="text" class="form-control" id="log-file" value="api_monitor.jsonl">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="output-dir" class="form-label">Output Directory <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="Directory to save request/response files"></i></label>
+                                        <input type="text" class="form-control" id="output-dir" placeholder="output">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="console-log-level" class="form-label">Console Log Level <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="Logging level for console output"></i></label>
+                                        <select class="form-select" id="console-log-level">
+                                            <option value="debug">Debug</option>
+                                            <option value="info" selected>Info</option>
+                                            <option value="warning">Warning</option>
+                                            <option value="error">Error</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="file-log-level" class="form-label">File Log Level <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="Logging level for file output"></i></label>
+                                        <select class="form-select" id="file-log-level">
+                                            <option value="debug">Debug</option>
+                                            <option value="info">Info</option>
+                                            <option value="warning" selected>Warning</option>
+                                            <option value="error">Error</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="tab-pane fade" id="dataset" role="tabpanel" aria-labelledby="dataset-tab">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label for="dataset-name" class="form-label">Dataset Name <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="Name of the dataset to load from Hugging Face"></i></label>
+                                        <input type="text" class="form-control" id="dataset-name" value="tatsu-lab/alpaca">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="template-type" class="form-label">Input Format <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="Choose how to format the input data"></i></label>
+                                        <select class="form-select" id="template-type">
+                                            <option value="template" selected>Template</option>
+                                            <option value="conversation">Conversation</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12" id="template-container">
+                                        <label for="template" class="form-label">Template <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="Template string with placeholders for dataset fields"></i></label>
+                                        <input type="text" class="form-control" id="template" value="{input}\nQuestion: {instruction}">
+                                    </div>
+                                    <div class="col-12 d-none" id="conversation-container">
+                                        <label for="conversation" class="form-label">Conversation Key <i class="bi bi-question-circle help-icon" data-bs-toggle="tooltip" title="Key in the dataset that contains conversation data"></i></label>
+                                        <input type="text" class="form-control" id="conversation" value="conversation">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-terminal-fill me-2"></i>Log Output
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="log-output" class="monitor-container">
+                            <div class="log-entry">
+                                <span class="log-time">[2025-04-01 10:00:00]</span> 
+                                <span class="log-info">API Throughput Monitor initialized. Ready to start.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-folder2-open me-2"></i>Output File
+                    </div>
+                    <!-- <div class="card-body"> -->
+                        <!-- <div id="file-output" class="file-container">
+                            
+                        </div> -->
+                        <div id="file-output-placeholder" class="session-grid-empty">
+                            <i class="bi bi-info-circle me-2"></i>No files yet
+                        </div>
+                    <!-- </div> -->
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="bi bi-speedometer2 me-2"></i>Monitoring Dashboard
+                        </div>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="btn btn-outline-secondary" id="refresh-btn">
+                                <i class="bi bi-arrow-clockwise"></i> Refresh
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" id="clear-btn">
+                                <i class="bi bi-trash"></i> Clear
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="row mb-4">
+                            <div class="col-md-3 mb-3">
+                                <div class="card h-100">
+                                    <div class="card-body text-center">
+                                        <h6 class="card-title text-muted">Active Sessions</h6>
+                                        <h2 id="active-sessions" class="mb-0">0</h2>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="card h-100">
+                                    <div class="card-body text-center">
+                                        <h6 class="card-title text-muted">Total Requests</h6>
+                                        <h2 id="total-requests" class="mb-0">0</h2>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="card h-100">
+                                    <div class="card-body text-center">
+                                        <h6 class="card-title text-muted">Success Rate</h6>
+                                        <h2 id="success-rate" class="mb-0">0%</h2>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="card h-100">
+                                    <div class="card-body text-center">
+                                        <h6 class="card-title text-muted">Avg Chars Per Second</h6>
+                                        <h2 id="chars-per-second" class="mb-0">0</h2>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="session-grid" id="sessions-grid">
+                            <div class="session-grid-empty">
+                                <i class="bi bi-info-circle me-2"></i>No sessions yet
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for configuration summary -->
+    <div class="modal fade" id="configModal" tabindex="-1" aria-labelledby="configModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="configModalLabel">Configuration Summary</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <strong>API URL:</strong> <span id="summary-api-url" class="config-value"></span>
+                    </div>
+                    <div class="mb-3">
+                        <strong>Model:</strong> <span id="summary-model" class="config-value"></span>
+                    </div>
+                    <div class="mb-3">
+                        <strong>Time Limit:</strong> <span id="summary-time-limit" class="config-value"></span> seconds
+                    </div>
+                    <div class="mb-3">
+                        <strong>Max Concurrent Requests:</strong> <span id="summary-max-concurrent" class="config-value"></span>
+                    </div>
+                    <div class="mb-3">
+                        <strong>Dataset:</strong> <span id="summary-dataset" class="config-value"></span>
+                    </div>
+                    <div class="mb-3">
+                        <strong>Template:</strong> <span id="summary-template" class="config-value"></span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="confirm-start">Start Monitoring</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <script>
+        // WebSocket integration for preview.html frontend
+        const wsUrl = 'ws://localhost:8765';
+        let ws;
+        const sessions = {};
+        
+        function updateDashboard(stats) {
+            document.getElementById('active-sessions').innerText = stats.active;
+            document.getElementById('total-requests').innerText = stats.total;
+            document.getElementById('success-rate').innerText = stats.success_rate.toFixed(2) + "%";
+            document.getElementById('chars-per-second').innerText = stats.chars_per_sec.toFixed(2) + " chars/s";
+        }
+
+        function handleStatsUpdate(data) {
+            const rows = data.sessions;
+            console.log(rows)
+            const dashboard = data.dashboard;
+        
+            Object.entries(rows).forEach(([id, sessionData]) => {
+                let session = sessions[id];
+                if (!session) {
+                    session = new Session(id, '', '', '', '');
+                    sessions[id] = session;
+                    document.getElementById('sessions-grid').appendChild(session.sessionCard.card);
+                }
+        
+                session.status = sessionData.status;
+                session.chars = sessionData.total_chars;
+                session.chunks = sessionData.chunks_received;
+
+                if(session.stopped){
+                    return
+                }
+
+                if (session.status === "Completed" || session.status === "Failed"){
+                    session.stopped = true;
+                }
+
+                if (sessionData.start_time) session.startTime = new Date(sessionData.start_time * 1000);
+                if (sessionData.first_token_latency) session.firstChunkTime = new Date((sessionData.start_time + sessionData.first_token_latency) * 1000);
+                if (sessionData.response_time && typeof sessionData.response_time === 'string') {
+                    // response_time 是 "3.41s" 這種字串，要 parse 成數字
+                    const seconds = parseFloat(sessionData.response_time.replace('s', ''));
+                    if (!isNaN(seconds)) {
+                        session.endTime = new Date((sessionData.start_time + seconds) * 1000);
+                    }
+                }
+
+                session.update();
+            });
+
+            if (dashboard) {
+                updateDashboard(dashboard);
+            }
+        }
+        
+
+        
+        function connectWS() {
+            ws = new WebSocket(wsUrl);
+            // Open Websocket connection
+            ws.onopen = () => {
+                addLogEntry('success', 'WebSocket connected');
+            };
+            // Close Websocket connection
+            ws.onclose = () => {
+                addLogEntry('success', 'WebSocket disconnected');
+            };
+            // Handle Websocket messages
+            ws.onmessage = event => {
+                const msg = JSON.parse(event.data);
+                handleMessage(msg);
+            };
+        }
+
+        const messageHandlers = {
+            'stats_update': handleStatsUpdateMessage,
+            'completed': handleCompletedMessage,
+            'file': handleFileMessage
+        };
+
+        function handleMessage(msg) {
+            const handler = messageHandlers[msg.status] || handleUnknownMessage;
+            handler(msg);
+        }
+
+        // Update sessions states and dashboard
+        function handleStatsUpdateMessage(msg) {
+            handleStatsUpdate(msg.data);
+        }
+        // Handle websocket-run complete message
+        function handleCompletedMessage(msg) {
+            isRunning = false;
+            document.getElementById('start-btn').disabled = false;
+            document.getElementById('stop-btn').disabled = true;
+            document.getElementById('status-indicator').className = 'status-indicator status-stopped';
+            document.getElementById('status-text').textContent = 'Completed';
+        }
+        // Handle file
+        function handleFileMessage(msg) {
+            addLogEntry('success', 'Recieve File.');
+            updateFileSection(msg.fileName, msg.fileUrl);
+        }
+        // Handle unknown message
+        function handleUnknownMessage(msg) {
+            console.warn('Unknown message type:', msg);
+        }
+        
+        connectWS();
+    </script>
+    <script>
+        // TODO: add logs into all the function with different log level
+        // TODO: allow user downloads the logs
+        var globalMonitor;
+        
+        const statusClasses = {
+                'Starting': 'status-starting',
+                'Processing': 'status-processing',
+                'Completed': 'status-completed',
+                'Failed': 'status-failed'
+            };
+        document.addEventListener('DOMContentLoaded', () => {
+            // Hello world
+            document.getElementById('fetch-models-btn').addEventListener('click', fetchModel);
+            document.getElementById('api-key').addEventListener('input', fetchModel);
+        })
+
+        // Function to add log entries
+        function addLogEntry(level, message) {
+            const logOutput = document.getElementById('log-output');
+            const now = new Date();
+            const timeString = now.toLocaleTimeString();
+            const dateString = now.toLocaleDateString();
+            
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            logEntry.innerHTML = `<span class="log-time">[${dateString} ${timeString}]</span> <span class="log-${level}">${message}</span>`;
+            
+            logOutput.appendChild(logEntry);
+            logOutput.scrollTop = logOutput.scrollHeight;
+        }
+
+        function APIThroughputMonitor(
+            model,
+            api_url,
+            api_key,
+            max_concurrent = 5,
+            time_limit = 10,
+            datasets = "tatsu-lab/alpaca",
+            thread_spawn_rate = 1, // maximum number of threads created per scheduling interval
+            pool_update_interval = 80, // Time interval between each thread pool update
+            status_callback = null
+        ){
+            this.model = model
+            this.api_url = api_url
+            this.api_key = api_key
+            this.max_concurrent = max_concurrent
+            this.time_limit = time_limit
+            this.questions = datasets
+            
+            this.sessions = []
+            this.status = "Starting" // ["Starting", "Processing", "Stop"]
+            this.pool = null
+            this.thread_spawn_rate = thread_spawn_rate
+            this.pool_update_interval = pool_update_interval
+
+            this.start_time = null
+            this.end_time = null
+            this.status_callback = typeof status_callback === 'function' ? status_callback : function(){}
+        }
+
+        APIThroughputMonitor.prototype.scheduler = function(){
+            // Initialize start time if not set and check if time limit is reached
+            if(this.start_time === null){
+                this.start_time = new Date();
+            }
+            this.end_time = new Date();
+            let elapsed_time = (this.end_time - this.start_time) / 1000; // in seconds
+            console.log("Elapsed time: ", elapsed_time, "Time limit: ", this.time_limit)
+            if(elapsed_time > this.time_limit){
+                console.log("[Monitor STOP] Time limit reached, stopping the monitor.")
+
+                addLogEntry('info', 'Time limit reached. Stopping the monitor.');
+                clearInterval(this.pool);
+                this.status = "Stop"
+                this.pool = null;
+                // call function update navbar status
+                this.status_callback(this)
+                return;
+            }
+            // Create session during run process
+            let active_sessions = this.sessions.filter(v=>{
+                return v.status === "Starting" || v.status === "Processing"
+            })
+            let lack_sessions_create = this.max_concurrent - active_sessions.length;
+            let sessions_create = Math.min(this.thread_spawn_rate, lack_sessions_create)
+            const sessionCard = document.getElementById('sessions-grid')
+            // sessionCard.innerHTML = ""
+
+            for(let i = 0 ; i < sessions_create ; i++){
+                let session_id = this.sessions.length
+                let session = new Session(
+                    session_id,
+                    this.api_url,
+                    this.api_key,
+                    this.model,
+                    "Write a story about OpenAI how created GPT 5.", // this.questions[session_id % this.questions.length]
+                )
+                session.makeRequest()
+                this.sessions.push(session)
+                sessionCard.append(session.sessionCard.card)
+            }
+            // Update dashboard
+            this.update_dashboard()
+        }
+        
+        APIThroughputMonitor.prototype.run = function(duration = 60){
+            // Check scheduler is never been created
+            this.status = "Processing"
+            console.log("Monitor run")
+            if(this.pool === null){
+                // Stop the scheduler
+                clearInterval(this.pool);
+                this.pool = null;
+                // Or stop the this run.
+            }
+            // Create scheduler
+            this.pool = setInterval(()=>this.scheduler(), this.pool_update_interval)
+        }
+
+        APIThroughputMonitor.prototype.update_dashboard = function(){
+            // TODO: update the dashboard with the latest data
+            let active_sessions = this.sessions.filter(v=>{
+                return v.status === "Starting" || v.status === "Processing"
+            })
+            // total requests
+            let total_requests = this.sessions.length
+            
+            // success rate equation: success rate = completed requests / (completed requests + failed requests)
+            let completed_requests = this.sessions.filter(v => v.status === "Completed").length
+            let failed_requests = this.sessions.filter(v => v.status === "Failed").length
+            let success_rate = ((completed_requests) / (completed_requests + failed_requests) * 100) | 0
+            
+            
+            // charters per second.
+            let chars_per_second = this.sessions.reduce((acc, session) => acc + session.chars, 0) / (this.end_time - this.start_time) * 1000
+            document.getElementById('active-sessions').innerText = active_sessions.length
+            document.getElementById('total-requests').innerText = total_requests
+            document.getElementById('success-rate').innerText = success_rate.toFixed(2) + "%"
+            document.getElementById('chars-per-second').innerText = chars_per_second.toFixed(2) + " chars/s"
+        }
+
+        function Session(id, api_url, api_key, model, prompt) {
+            this.id = id;
+            this.api_url = api_url;
+            this.api_key = api_key;
+            this.model = model;
+            this.prompt = prompt;
+
+            this.sessionId = id;
+            this.startTime = new Date();
+            this.lastChunkReceivedTime = new Date();
+            this.chars = 0;
+            this.chunks = 0;
+            this.latencies = [];
+            this.status = 'Starting';
+            this.tokens = 0;                // total tokens
+            this.completionTokens = 0;
+            this.promptTokens = 0;
+            this.sessionCard = this.createCard();
+            this.firstChunkTime = null;
+            this.endTime = null;
+            this.rawChunks = [];            // store each chunk's raw data line
+            this.finalResult = '';
+            this.request = null;
+            this.reader = null;
+            this.decoder = new TextDecoder();
+            this.error = null;
+            this.stopped = false;
+        }
+
+        // --- UI helpers ---
+        Session.prototype.createCard = function() {
+            const sessionCard = document.createElement('div');
+            sessionCard.className = `session-card ${statusClasses['Starting']}`;
+
+            // Session Header
+            const sessionHeader = document.createElement('div');
+            sessionHeader.className = 'session-header';
+            const sessionId = document.createElement('span');
+            sessionId.className = 'session-id';
+            sessionId.textContent = `Session ${this.id}`;
+            const sessionStatus = document.createElement('span');
+            sessionStatus.className = `session-status ${statusClasses[this.status]}`;
+            sessionStatus.textContent = this.status;
+            sessionHeader.appendChild(sessionId);
+            sessionHeader.appendChild(sessionStatus);
+
+            // Session Body
+            const sessionBody = document.createElement('div');
+            sessionBody.className = 'session-body';
+
+            // Row 1: Response Time + Chars
+            const row1 = document.createElement('div'); row1.className = 'row mb-2';
+            const col1 = document.createElement('div'); col1.className = 'col-6';
+            const responseTime = document.createElement('strong'); responseTime.textContent = 'Response Time: ';
+            const responseTimeValue = document.createElement('span');
+            col1.appendChild(responseTime); col1.appendChild(responseTimeValue);
+            const col2 = document.createElement('div'); col2.className = 'col-6';
+            const chars = document.createElement('strong'); chars.textContent = 'Chars: ';
+            const charsValue = document.createElement("span"); charsValue.textContent = '0';
+            col2.appendChild(chars); col2.appendChild(charsValue);
+            row1.appendChild(col1); row1.appendChild(col2);
+
+            // Row 2: Chunks
+            const row2 = document.createElement('div'); row2.className = 'row';
+            const col3 = document.createElement('div'); col3.className = 'col-12';
+            const chunks = document.createElement('strong'); chunks.textContent = 'Chunks: ';
+            const chunksValue = document.createElement("span"); chunksValue.textContent = '0';
+            col3.appendChild(chunks); col3.appendChild(chunksValue);
+            row2.appendChild(col3);
+
+            // Add to session body
+            sessionBody.appendChild(row1); sessionBody.appendChild(row2);
+
+            // Session Footer
+            const sessionFooter = document.createElement('div');
+            sessionFooter.className = 'session-footer';
+            const footerText = document.createElement('span');
+            footerText.className = 'text-muted';
+            footerText.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+            sessionFooter.appendChild(footerText);
+
+            // Assemble
+            sessionCard.appendChild(sessionHeader);
+            sessionCard.appendChild(sessionBody);
+            sessionCard.appendChild(sessionFooter);
+
+            return {
+                card: sessionCard,
+                chunks: chunksValue,
+                chars: charsValue,
+                time: responseTimeValue,
+                status: sessionStatus,
+                footer: footerText,
+            };
+        };
+
+        Session.prototype.update = function() {
+            var elapsed_time = this.startTime ? (new Date() - this.startTime) / 1000 : 0
+            // var elapsed_time = this.firstChunkTime ? ((new Date() - this.firstChunkTime) / 1000) : 0;
+            this.sessionCard.chars.textContent = this.chars;
+            this.sessionCard.chunks.textContent = this.chunks;
+            this.sessionCard.card.className = `session-card ${statusClasses[this.status]}`;
+            this.sessionCard.status.textContent = this.status;
+            this.sessionCard.status.className = `session-status ${statusClasses[this.status]}`;
+            this.sessionCard.time.textContent = `${elapsed_time.toFixed(2)}s`;
+            this.sessionCard.footer.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+        };
+
+        // --- Main fetch+stream logic ---
+        Session.prototype.makeRequest = async function() {
+            this.status = 'Starting';
+            this.update();
+
+            var apiUrl = this.api_url;
+            var apiKey = this.api_key
+            var model = this.model
+            var prompt = this.prompt
+
+            this.startTime = new Date()
+            this.firstChunkTime = null
+            this.endTime = null
+            this.chars = 0
+            this.chunks = 0
+            this.latencies = []
+            this.tokens = 0
+            this.completionTokens = 0
+            this.promptTokens = 0
+            this.rawChunks = []
+            this.finalResult = ''
+            this.error = null
+
+            try {
+                this.status = 'Processing';
+                this.update();
+
+                var response = await fetch(`${this.api_url}/chat/completions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${this.api_key}`
+                    },
+                    body: JSON.stringify({
+                        model: model,
+                        stream: true,
+                        messages: [{ role: "user", content: prompt }]
+                    })
+                });
+
+                if (!response.ok) {
+                    // Try to parse JSON error
+                    var errorText = 'Error with API request';
+                    try {
+                        const errorData = await response.json();
+                        errorText = errorData.error?.message || errorText;
+                    } catch (e) {
+                        errorText = await response.text();
+                    }
+                    throw new Error(errorText);
+                }
+
+                var reader = response.body.getReader();
+                var decoder = new TextDecoder();
+                var assistantContent = '';
+
+                this.firstChunkTime = null; // set when first real chunk happens
+
+                // mainLoop:
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    const chunk = decoder.decode(value, { stream: true });
+                    const lines = chunk.split(/\r?\n/);
+
+                    for (var i = 0; i < lines.length; ++i) {
+                        var line = lines[i];
+                        if (!line.trim()) continue;
+                        this.rawChunks.push(line);
+
+                        if (line.trim() === "data: [DONE]") {
+                            this.status = 'Completed';
+                            this.update();
+                            // break mainLoop;
+                        }
+
+                        // Should be data: <json>
+                        if (!line.startsWith("data:")) continue;
+                        let payload;
+                        try {
+                            payload = JSON.parse(line.slice(5).trim());
+                        } catch (err) {
+                            continue; // skip parse fail
+                        }
+
+                        if (!this.firstChunkTime) {
+                            this.firstChunkTime = new Date();
+                        }
+
+                        // Latency measurement (from last received)
+                        var now = new Date();
+                        var latency = now - this.lastChunkReceivedTime;
+                        this.latencies.push(latency);
+                        this.lastChunkReceivedTime = now;
+
+                        // Text/tokens counts
+                        var chunkText = '';
+                        var addChunks = 0, addChars = 0;
+
+                        if (Array.isArray(payload.choices)) {
+                            for (var j = 0; j < payload.choices.length; ++j) {
+                                var choice = payload.choices[j];
+                                if (choice.delta && typeof choice.delta.content === 'string') {
+                                    chunkText += choice.delta.content;
+                                    addChars += choice.delta.content.length;
+                                    addChunks += 1;
+                                    assistantContent += choice.delta.content;
+                                }
+                                if (choice.finish_reason) {
+                                    this.status = (choice.finish_reason === 'stop' || choice.finish_reason === 'length')
+                                        ? 'Completed'
+                                        : 'Failed';
+                                }
+                            }
+                        }
+                        this.chunks += addChunks;
+                        this.chars += addChars;
+
+                        // Token stats
+                        if (payload.usage) {
+                            this.promptTokens = payload.usage.prompt_tokens ?? this.promptTokens;
+                            this.completionTokens = payload.usage.completion_tokens ?? this.completionTokens;
+                            this.tokens = payload.usage.total_tokens ?? (this.promptTokens + this.completionTokens);
+                        }
+
+                        this.finalResult = assistantContent;
+                        this.update();
+
+                        // (Optional: Callbacks e.g. this.onPartialData && this.onPartialData(chunkText, assistantContent, this))
+                    }
+                }
+                this.endTime = new Date();
+                this.status = this.status === 'Processing' ? 'Completed' : this.status;
+                this.update();
+                // (Optional: this.onComplete && this.onComplete(this.finalResult, this))
+            } catch (err) {
+                this.status = 'Failed';
+                this.endTime = new Date();
+                this.error = err;
+                this.update();
+                // (Optional: this.onError && this.onError(err, this))
+            }
+        };
+        // ------ Interface functions ------
+        // Start button click handler
+        document.getElementById('start-btn').addEventListener('click', function() {
+            const configModal = new bootstrap.Modal(document.getElementById('configModal'));
+            resetDashboard();
+            
+            // Populate summary fields
+            document.getElementById('summary-api-url').textContent = document.getElementById('api-url').value || 'https://api.openai.com/v1 (Not specified)';
+            document.getElementById('summary-model').textContent = document.getElementById('model').value || 'Not specified';
+            document.getElementById('summary-time-limit').textContent = document.getElementById('time-limit').value;
+            document.getElementById('summary-max-concurrent').textContent = document.getElementById('max-concurrent').value;
+            document.getElementById('summary-dataset').textContent = document.getElementById('dataset-name').value;
+            
+            const templateType = document.getElementById('template-type').value;
+            if (templateType === 'template') {
+                document.getElementById('summary-template').textContent = document.getElementById('template').value;
+            } else {
+                document.getElementById('summary-template').textContent = document.getElementById('conversation').value;
+            }
+            
+            configModal.show();
+        });
+
+        // Confirm start button click handler
+        document.getElementById('confirm-start').addEventListener('click', function() {
+            const configModal = bootstrap.Modal.getInstance(document.getElementById('configModal'));
+            configModal.hide();
+            let apiUrl = document.getElementById("api-url")
+            // Update UI to show running state
+            document.getElementById('status-indicator').className = 'status-indicator status-running';
+            document.getElementById('status-text').textContent = 'Running';
+            document.getElementById('start-btn').disabled = true;
+            document.getElementById('stop-btn').disabled = false;
+            
+            // Add log entry
+            addLogEntry('info', 'Starting API Throughput Monitor...');
+
+            runBenchmark();
+        });
+
+        // Stop button click handler
+        document.getElementById('stop-btn').addEventListener('click', function() {
+            // Update UI to show stopped state
+            document.getElementById('status-indicator').className = 'status-indicator status-stopped';
+            document.getElementById('status-text').textContent = 'Stopped';
+            document.getElementById('start-btn').disabled = false;
+            document.getElementById('stop-btn').disabled = true;
+            
+            // Add log entry
+            addLogEntry('info', 'Stopping API Throughput Monitor...');
+            
+            sendStopCommand();
+        });
+
+        let isRunning = false;
+        function runBenchmark(){
+            if (isRunning) {
+                addLogEntry('warn', 'Benchmark is already running.');
+                return;
+            }
+        
+            isRunning = true;
+            let model = document.getElementById('model').value || 'Not specified'
+            let api_url = document.getElementById('api-url').value || 'https://api.openai.com/v1)'
+            let api_key = document.getElementById('api-key').value || ''
+            let max_concurrent = parseInt(document.getElementById('max-concurrent').value) // TODO: value check
+            let time_limit = parseInt(document.getElementById('time-limit').value)
+            let datasets = document.getElementById('dataset-name').value
+            let template_type = document.getElementById('template-type').value
+            let conversation_str = template_type === "conversation" ? document.getElementById('conversation').value : ''
+            let template_str = template_type === "template" ? document.getElementById('template').value : ''
+            // TODO: replace this creation with WebSocket connection info.
+
+            // const sessionGrid = document.getElementById('sessions-grid');
+            // sessionGrid.innerHTML = ""; // Clear previous sessions
+
+            const sessionCard = document.getElementById('sessions-grid');
+            sessionCard.innerHTML = "";
+
+            for(let session in Object.keys(sessions)){
+                // sessions[session].status = "Stop"
+                // sessions[session].update()
+                delete sessions[session]
+            }
+
+            const params = {
+                command: 'start',
+                params: {
+                    model: document.getElementById('model').value,
+                    api_url: document.getElementById('api-url').value,
+                    max_concurrent: parseInt(document.getElementById('max-concurrent').value),
+                    time_limit: parseInt(document.getElementById('time-limit').value),
+                    dataset: document.getElementById('dataset-name').value,
+                    template: template_str,
+                    conversation: conversation_str,
+                }
+            };
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify(params));
+                addLogEntry('info', 'Sent start command.');
+            } else {
+                addLogEntry('error', 'WebSocket not connected.');
+            }
+        }
+        
+        function sendStopCommand() {
+            isRunning = false;
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({
+                command: "stop"
+              }));
+              addLogEntry('info', 'Sent stop command.');
+            } else {
+              addLogEntry('warn', '🛑 Cannot send stop, connection not open.');
+            }
+        }
+
+        function resetDashboard() {
+            init_stats = {"active": 0,
+                          "total": 0,
+                          "success_rate": 0,
+                          "chars_per_sec": 0
+            }
+            updateDashboard(init_stats)
+
+            const sessionsGrid = document.getElementById('sessions-grid');
+            sessionsGrid.innerHTML = "";
+            const emptyMessage = document.createElement('div');
+            emptyMessage.classList.add('session-grid-empty');
+            emptyMessage.innerHTML = '<i class="bi bi-info-circle me-2"></i>No sessions yet';
+            sessionsGrid.appendChild(emptyMessage);
+        }
+        
+        // Add donwload file button while get file from backend
+        function updateFileSection(fileName, fileUrl) {
+            const placeholder = document.getElementById('file-output-placeholder');
+            const fullUrl = window.location.origin + fileUrl;
+            
+            // Add card for files section
+            if (placeholder) {
+                fileContainer = document.createElement('div');
+                fileContainer.classList.add('card-body');
+                fileContainer.id = 'file-output';
+                placeholder.replaceWith(fileContainer);
+            } else {
+                fileContainer = document.getElementById('file-output');
+            }
+            
+            // Add files
+            const fileEntry = document.createElement('div');
+            fileEntry.classList.add('file-entry');
+        
+            const fileNameElement = document.createElement('span');
+            fileNameElement.textContent = fileName;
+
+            const downloadButton = document.createElement('a');
+            downloadButton.href = fullUrl;
+            downloadButton.setAttribute('download', fileName);
+            downloadButton.classList.add('btn', 'btn-outline-secondary', 'btn-sm', 'download-btn');
+            downloadButton.innerHTML = '<i class="bi bi-download me-1"></i>Download';
+        
+            fileEntry.appendChild(fileNameElement);
+            fileEntry.appendChild(downloadButton);
+            fileContainer.appendChild(fileEntry);
+
+            if (fileName.endsWith('.png')) {
+                const imageWrapper = document.createElement('div');
+                imageWrapper.classList.add('mt-4');
+            
+                const caption = document.createElement('h5');
+                caption.textContent = "📈 API Metrics Visualization";
+                caption.className = "text-muted mb-2";
+
+                const img = document.createElement('img');
+                img.src = fullUrl;
+                img.alt = "API Metrics Visualization";
+                img.className = "img-fluid rounded shadow mb-3";
+                img.style.maxWidth = "100%";
+            
+                imageWrapper.appendChild(caption);
+                imageWrapper.appendChild(img);
+                fileContainer.appendChild(imageWrapper);
+            }
+        }
+
+        // updateFileSection('example.txt', '/downloads/example.txt');
+        // updateFileSection('example2.txt', '/downloads/example.txt');
+
+        
+        async function fetchModel() {
+            const btn = this;
+            btn.disabled = true;
+            btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Fetching...`;
+
+            const apiUrl = document.getElementById("api-url").value.trim();
+            const apiKey = document.getElementById("api-key").value.trim();
+            const select = document.getElementById("model-list");
+            const modelInput = document.getElementById("model");
+            select.classList.add('d-none');
+            select.innerHTML = "";
+            if (!apiUrl && !apiKey) {
+                addLogEntry('error', 'API URL and API Key are required to fetch models!');
+                btn.disabled = false;
+                btn.innerHTML = `<i class="bi bi-cloud-download"></i> Fetch Models`;
+                return;
+            } else if (!apiUrl) {
+                addLogEntry('error', 'API URL are required to fetch models!');
+                btn.disabled = false;
+                btn.innerHTML = `<i class="bi bi-cloud-download"></i> Fetch Models`;
+                return;
+            } else if (!apiKey) {
+                addLogEntry('error', 'API Key are required to fetch models!');
+                btn.disabled = false;
+                btn.innerHTML = `<i class="bi bi-cloud-download"></i> Fetch Models`;
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${apiUrl}/models`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`
+                    }
+                });
+                if (!response.ok) {
+                    let msg = 'Failed to fetch models';
+                    try { msg = (await response.json()).error?.message || msg; } catch {}
+                    throw new Error(msg);
+                }
+                const data = await response.json();
+                let models = [];
+                if (Array.isArray(data.data)) {
+                    models = data.data.map(m => m.id);
+                } else if (Array.isArray(data.models)) {
+                    models = data.models.map(m => m.id || m);
+                }
+                if (models.length === 0) throw new Error('Model list is empty');
+                select.innerHTML = `<option disabled selected>Choose a model</option>`;
+                models.forEach(m => {
+                    let opt = document.createElement('option');
+                    opt.value = m;
+                    opt.textContent = m;
+                    select.appendChild(opt);
+                });
+                select.classList.remove('d-none');
+                select.onchange = function(){
+                    if(this.value && this.value !== "Choose a model") {
+                        modelInput.value = this.value;
+                    }
+                }
+                addLogEntry('success', `Fetched ${models.length} models.`);
+            } catch(e) {
+                addLogEntry('error', 'Error fetching models: ' + (e.message || e));
+            }
+            btn.disabled = false;
+            btn.innerHTML = `<i class="bi bi-cloud-download"></i> Fetch Models`;
+        }
+    </script>
+</body>
+</html>
