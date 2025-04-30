@@ -1,0 +1,1320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Throughput Monitor Dashboard</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+        .status-running {
+            background-color: #28a745;
+        }
+        .status-stopped {
+            background-color: #dc3545;
+        }
+        .session-card {
+            transition: all 0.3s ease;
+        }
+        .session-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+        }
+        .log-output {
+            height: 300px;
+            overflow-y: auto;
+            background-color: #212529;
+            color: #f8f9fa;
+            font-family: monospace;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+            border-bottom: 1px solid #495057;
+            padding-bottom: 5px;
+        }
+        .log-time {
+            color: #868e96;
+            margin-right: 10px;
+        }
+        .log-info {
+            color: #0d6efd;
+        }
+        .log-success {
+            color: #198754;
+        }
+        .log-warning {
+            color: #ffc107;
+        }
+        .log-error {
+            color: #dc3545;
+        }
+        .nav-tabs .nav-link {
+            color: #495057;
+        }
+        .nav-tabs .nav-link.active {
+            font-weight: bold;
+            color: #0d6efd;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-speedometer2 me-2"></i>
+                API Throughput Monitor
+            </a>
+            <div class="d-flex align-items-center">
+                <div class="me-3">
+                    <span class="status-indicator status-stopped" id="statusIndicator"></span>
+                    <span id="statusText">Stopped</span>
+                </div>
+                <button id="startBtn" class="btn btn-success me-2">
+                    <i class="bi bi-play-fill"></i> Start
+                </button>
+                <button id="stopBtn" class="btn btn-danger" disabled>
+                    <i class="bi bi-stop-fill"></i> Stop
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid py-4">
+        <div class="row">
+            <!-- Configuration Card -->
+            <div class="col-lg-4 mb-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">
+                            <i class="bi bi-gear-fill me-2"></i>
+                            Configuration
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <ul class="nav nav-tabs" id="configTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="basic-tab" data-bs-toggle="tab" data-bs-target="#basic" type="button" role="tab" aria-controls="basic" aria-selected="true">Basic</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="advanced-tab" data-bs-toggle="tab" data-bs-target="#advanced" type="button" role="tab" aria-controls="advanced" aria-selected="false">Advanced</button>
+                            </li>
+                        </ul>
+                        <div class="tab-content p-3" id="configTabsContent">
+                            <div class="tab-pane fade show active" id="basic" role="tabpanel" aria-labelledby="basic-tab">
+                                <form id="basicConfigForm">
+                                    <div class="mb-3">
+                                        <label for="apiEndpoint" class="form-label">API Endpoint</label>
+                                        <input type="text" class="form-control" id="apiEndpoint" placeholder="https://api.example.com/endpoint" value="https://api.example.com/endpoint">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="concurrentSessions" class="form-label">Concurrent Sessions</label>
+                                        <input type="number" class="form-control" id="concurrentSessions" min="1" max="100" value="5">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="requestInterval" class="form-label">Request Interval (ms)</label>
+                                        <input type="number" class="form-control" id="requestInterval" min="100" max="10000" value="1000">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="authType" class="form-label">Authentication Type</label>
+                                        <select class="form-select" id="authType">
+                                            <option value="none">None</option>
+                                            <option value="bearer">Bearer Token</option>
+                                            <option value="basic">Basic Auth</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3" id="bearerTokenContainer">
+                                        <label for="bearerToken" class="form-label">Bearer Token</label>
+                                        <input type="password" class="form-control" id="bearerToken" placeholder="Enter your bearer token">
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="tab-pane fade" id="advanced" role="tabpanel" aria-labelledby="advanced-tab">
+                                <form id="advancedConfigForm">
+                                    <div class="mb-3">
+                                        <label for="timeout" class="form-label">Request Timeout (ms)</label>
+                                        <input type="number" class="form-control" id="timeout" min="100" max="30000" value="5000">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="retryAttempts" class="form-label">Retry Attempts</label>
+                                        <input type="number" class="form-control" id="retryAttempts" min="0" max="10" value="3">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="retryDelay" class="form-label">Retry Delay (ms)</label>
+                                        <input type="number" class="form-control" id="retryDelay" min="100" max="5000" value="1000">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="loggingLevel" class="form-label">Logging Level</label>
+                                        <select class="form-select" id="loggingLevel">
+                                            <option value="debug">Debug</option>
+                                            <option value="info" selected>Info</option>
+                                            <option value="warning">Warning</option>
+                                            <option value="error">Error</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="requestMethod" class="form-label">Request Method</label>
+                                        <select class="form-select" id="requestMethod">
+                                            <option value="GET">GET</option>
+                                            <option value="POST">POST</option>
+                                            <option value="PUT">PUT</option>
+                                            <option value="DELETE">DELETE</option>
+                                        </select>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                        <div class="d-grid gap-2 mt-3">
+                            <button id="saveConfigBtn" class="btn btn-primary">
+                                <i class="bi bi-save me-2"></i>Save Configuration
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Log Output Card -->
+            <div class="col-lg-8 mb-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">
+                            <i class="bi bi-journal-text me-2"></i>
+                            Log Output
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="log-output" id="logOutput">
+                            <div class="log-entry">
+                                <span class="log-time">[00:00:00]</span>
+                                <span class="log-info">API Throughput Monitor initialized. Ready to start monitoring.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Dashboard Metrics Card -->
+            <div class="col-lg-4 mb-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">
+                            <i class="bi bi-graph-up me-2"></i>
+                            Dashboard Metrics
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-6 mb-3">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center">
+                                        <h6 class="card-title text-muted">Active Sessions</h6>
+                                        <h2 id="activeSessionsCount">0</h2>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6 mb-3">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center">
+                                        <h6 class="card-title text-muted">Total Requests</h6>
+                                        <h2 id="totalRequestsCount">0</h2>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6 mb-3">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center">
+                                        <h6 class="card-title text-muted">Success Rate</h6>
+                                        <h2 id="successRate">0%</h2>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6 mb-3">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center">
+                                        <h6 class="card-title text-muted">Chars/sec</h6>
+                                        <h2 id="charsPerSecond">0</h2>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6 mb-3">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center">
+                                        <h6 class="card-title text-muted">Avg Latency</h6>
+                                        <h2 id="avgLatency">0ms</h2>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6 mb-3">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center">
+                                        <h6 class="card-title text-muted">Avg Chunks</h6>
+                                        <h2 id="avgChunks">0</h2>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Card -->
+            <div class="col-lg-8 mb-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0">
+                            <i class="bi bi-bar-chart-line-fill me-2"></i>
+                            Charts
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <ul class="nav nav-tabs" id="chartTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="time-series-tab" data-bs-toggle="tab" data-bs-target="#time-series" type="button" role="tab" aria-controls="time-series" aria-selected="true">Time Series</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="per-session-tab" data-bs-toggle="tab" data-bs-target="#per-session" type="button" role="tab" aria-controls="per-session" aria-selected="false">Per Session</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="distribution-tab" data-bs-toggle="tab" data-bs-target="#distribution" type="button" role="tab" aria-controls="distribution" aria-selected="false">Distribution</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="detail-tab" data-bs-toggle="tab" data-bs-target="#detail" type="button" role="tab" aria-controls="detail" aria-selected="false">Detail</button>
+                            </li>
+                        </ul>
+                        <div class="tab-content p-3" id="chartTabsContent">
+                            <div class="tab-pane fade show active" id="time-series" role="tabpanel" aria-labelledby="time-series-tab">
+                                <div class="chart-container">
+                                    <canvas id="timeSeriesChart"></canvas>
+                                </div>
+                            </div>
+                            <div class="tab-pane fade" id="per-session" role="tabpanel" aria-labelledby="per-session-tab">
+                                <div class="chart-container">
+                                    <canvas id="perSessionChart"></canvas>
+                                </div>
+                            </div>
+                            <div class="tab-pane fade" id="distribution" role="tabpanel" aria-labelledby="distribution-tab">
+                                <div class="chart-container">
+                                    <canvas id="distributionChart"></canvas>
+                                </div>
+                            </div>
+                            <div class="tab-pane fade" id="detail" role="tabpanel" aria-labelledby="detail-tab">
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <div class="chart-container">
+                                            <canvas id="latencyPerChunkChart"></canvas>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="chart-container">
+                                            <canvas id="latencyHistogramChart"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Session Cards Grid -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-secondary text-white">
+                        <h5 class="mb-0">
+                            <i class="bi bi-list-ul me-2"></i>
+                            API Sessions
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row" id="sessionCardsContainer">
+                            <!-- Session cards will be dynamically added here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        // Main Application Class
+        class APIThroughputMonitor {
+            constructor() {
+                this.isRunning = false;
+                this.sessions = [];
+                this.config = {
+                    apiEndpoint: 'https://api.example.com/endpoint',
+                    concurrentSessions: 5,
+                    requestInterval: 1000,
+                    authType: 'none',
+                    bearerToken: '',
+                    timeout: 5000,
+                    retryAttempts: 3,
+                    retryDelay: 1000,
+                    loggingLevel: 'info',
+                    requestMethod: 'GET'
+                };
+                this.metrics = {
+                    activeSessions: 0,
+                    totalRequests: 0,
+                    successfulRequests: 0,
+                    totalChars: 0,
+                    totalChunks: 0,
+                    totalLatency: 0
+                };
+                this.timeSeriesData = {
+                    labels: [],
+                    activeSessions: [],
+                    totalRequests: [],
+                    successRate: [],
+                    charsPerSecond: []
+                };
+                this.charts = new DashboardCharts();
+                this.initUI();
+                this.initEventListeners();
+                this.log('info', 'API Throughput Monitor initialized. Ready to start monitoring.');
+            }
+
+            initUI() {
+                // Initialize UI elements with default values
+                document.getElementById('apiEndpoint').value = this.config.apiEndpoint;
+                document.getElementById('concurrentSessions').value = this.config.concurrentSessions;
+                document.getElementById('requestInterval').value = this.config.requestInterval;
+                document.getElementById('authType').value = this.config.authType;
+                document.getElementById('bearerToken').value = this.config.bearerToken;
+                document.getElementById('timeout').value = this.config.timeout;
+                document.getElementById('retryAttempts').value = this.config.retryAttempts;
+                document.getElementById('retryDelay').value = this.config.retryDelay;
+                document.getElementById('loggingLevel').value = this.config.loggingLevel;
+                document.getElementById('requestMethod').value = this.config.requestMethod;
+
+                // Initialize charts
+                this.charts.initCharts();
+            }
+
+            initEventListeners() {
+                // Start/Stop buttons
+                document.getElementById('startBtn').addEventListener('click', () => this.start());
+                document.getElementById('stopBtn').addEventListener('click', () => this.stop());
+                
+                // Configuration form
+                document.getElementById('saveConfigBtn').addEventListener('click', () => this.saveConfig());
+                
+                // Auth type change
+                document.getElementById('authType').addEventListener('change', (e) => {
+                    const bearerTokenContainer = document.getElementById('bearerTokenContainer');
+                    if (e.target.value === 'bearer') {
+                        bearerTokenContainer.style.display = 'block';
+                    } else {
+                        bearerTokenContainer.style.display = 'none';
+                    }
+                });
+            }
+
+            save() {
+                // Get values from form
+                this.config.apiEndpoint = document.getElementById('apiEndpoint').value;
+                this.config.concurrentSessions = parseInt(document.getElementById('concurrentSessions').value);
+                this.config.requestInterval = parseInt(document.getElementById('requestInterval').value);
+                this.config.authType = document.getElementById('authType').value;
+                this.config.bearerToken = document.getElementById('bearerToken').value;
+                this.config.timeout = parseInt(document.getElementById('timeout').value);
+                this.config.retryAttempts = parseInt(document.getElementById('retryAttempts').value);
+                this.config.retryDelay = parseInt(document.getElementById('retryDelay').value);
+                this.config.loggingLevel = document.getElementById('loggingLevel').value;
+                this.config.requestMethod = document.getElementById('requestMethod').value;
+
+                this.log('info', `Configuration saved: ${JSON.stringify(this.config, null, 2)}`);
+                
+                // Show toast notification
+                this.showToast('Configuration saved successfully!', 'success');
+            }
+
+            start() {
+                if (this.isRunning) return;
+                
+                this.isRunning = true;
+                this.updateStatusUI(true);
+                this.log('info', 'Starting API throughput monitoring...');
+                
+                // Create session cards
+                this.createSessionCards();
+                
+                // Start monitoring
+                this.startMonitoring();
+                
+                // Start metrics update interval
+                this.metricsInterval = setInterval(() => this.updateMetrics(), 1000);
+            }
+
+            stop() {
+                if (!this.isRunning) return;
+                
+                this.isRunning = false;
+                this.updateStatusUI(false);
+                this.log('info', 'Stopping API throughput monitoring...');
+                
+                // Stop all sessions
+                this.sessions.forEach(session => session.stop());
+                this.sessions = [];
+                
+                // Clear session cards
+                document.getElementById('sessionCardsContainer').innerHTML = '';
+                
+                // Clear metrics update interval
+                clearInterval(this.metricsInterval);
+                
+                // Reset metrics
+                this.resetMetrics();
+            }
+
+            updateStatusUI(isRunning) {
+                const statusIndicator = document.getElementById('statusIndicator');
+                const statusText = document.getElementById('statusText');
+                const startBtn = document.getElementById('startBtn');
+                const stopBtn = document.getElementById('stopBtn');
+                
+                if (isRunning) {
+                    statusIndicator.classList.remove('status-stopped');
+                    statusIndicator.classList.add('status-running');
+                    statusText.textContent = 'Running';
+                    startBtn.disabled = true;
+                    stopBtn.disabled = false;
+                } else {
+                    statusIndicator.classList.remove('status-running');
+                    statusIndicator.classList.add('status-stopped');
+                    statusText.textContent = 'Stopped';
+                    startBtn.disabled = false;
+                    stopBtn.disabled = true;
+                }
+            }
+
+            createSessionCards() {
+                const container = document.getElementById('sessionCardsContainer');
+                container.innerHTML = '';
+                
+                for (let i = 0; i < this.config.concurrentSessions; i++) {
+                    const sessionId = `session-${i}`;
+                    const session = new Session(sessionId, i + 1, this.config, this);
+                    this.sessions.push(session);
+                    
+                    const cardHtml = `
+                        <div class="col-md-4 mb-3">
+                            <div class="card session-card shadow-sm" id="${sessionId}-card">
+                                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0">Session ${i + 1}</h6>
+                                    <span class="badge bg-secondary" id="${sessionId}-status">Idle</span>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row mb-2">
+                                        <div class="col-6">
+                                            <small class="text-muted">Status</small>
+                                            <p class="mb-0" id="${sessionId}-status-text">Idle</p>
+                                        </div>
+                                        <div class="col-6">
+                                            <small class="text-muted">Latency</small>
+                                            <p class="mb-0" id="${sessionId}-latency">0ms</p>
+                                        </div>
+                                    </div>
+                                    <div class="row mb-2">
+                                        <div class="col-6">
+                                            <small class="text-muted">Chars</small>
+                                            <p class="mb-0" id="${sessionId}-chars">0</p>
+                                        </div>
+                                        <div class="col-6">
+                                            <small class="text-muted">Chunks</small>
+                                            <p class="mb-0" id="${sessionId}-chunks">0</p>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-12">
+                                            <small class="text-muted">Response</small>
+                                            <p class="mb-0 text-truncate" id="${sessionId}-response" style="max-width: 100%;">No data</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    container.innerHTML += cardHtml;
+                }
+            }
+
+            startMonitoring() {
+                // Start each session
+                this.sessions.forEach(session => {
+                    session.start();
+                });
+                
+                // Schedule next interval
+                this.scheduleNextRequest();
+            }
+
+            scheduleNextRequest() {
+                if (!this.isRunning) return;
+                
+                setTimeout(() => {
+                    // Find an idle session
+                    const idleSession = this.sessions.find(session => session.status === 'idle');
+                    
+                    if (idleSession) {
+                        idleSession.startRequest();
+                        this.metrics.totalRequests++;
+                        this.updateMetricsDisplay();
+                    }
+                    
+                    // Schedule next request
+                    this.scheduleNextRequest();
+                }, this.config.requestInterval);
+            }
+
+            updateMetrics() {
+                // Update time series data
+                const now = new Date();
+                const timeLabel = now.getHours().toString().padStart(2, '0') + ':' + 
+                                 now.getMinutes().toString().padStart(2, '0') + ':' + 
+                                 now.getSeconds().toString().padStart(2, '0');
+                
+                this.timeSeriesData.labels.push(timeLabel);
+                this.timeSeriesData.activeSessions.push(this.sessions.filter(s => s.status === 'active').length);
+                this.timeSeriesData.totalRequests.push(this.metrics.totalRequests);
+                
+                const successRate = this.metrics.totalRequests > 0 
+                    ? (this.metrics.successfulRequests / this.metrics.totalRequests * 100).toFixed(1) 
+                    : 0;
+                this.timeSeriesData.successRate.push(parseFloat(successRate));
+                
+                const charsPerSecond = this.metrics.totalChars / 10; // Approximate over last 10 seconds
+                this.timeSeriesData.charsPerSecond.push(charsPerSecond);
+                
+                // Keep only the last 20 data points
+                if (this.timeSeriesData.labels.length > 20) {
+                    this.timeSeriesData.labels.shift();
+                    this.timeSeriesData.activeSessions.shift();
+                    this.timeSeriesData.totalRequests.shift();
+                    this.timeSeriesData.successRate.shift();
+                    this.timeSeriesData.charsPerSecond.shift();
+                }
+                
+                // Update charts
+                this.charts.updateTimeSeriesChart(this.timeSeriesData);
+                
+                // Update distribution data
+                this.updateDistributionData();
+                
+                // Update per session data
+                this.updatePerSessionData();
+                
+                // Update detail charts
+                this.updateDetailCharts();
+            }
+
+            updateMetricsDisplay() {
+                document.getElementById('activeSessionsCount').textContent = this.sessions.filter(s => s.status === 'active').length;
+                document.getElementById('totalRequestsCount').textContent = this.metrics.totalRequests;
+                
+                const successRate = this.metrics.totalRequests > 0 
+                    ? (this.metrics.successfulRequests / this.metrics.totalRequests * 100).toFixed(1) 
+                    : 0;
+                document.getElementById('successRate').textContent = successRate + '%';
+                
+                document.getElementById('charsPerSecond').textContent = Math.round(this.metrics.totalChars / 10);
+                
+                const avgLatency = this.metrics.totalLatency > 0 && this.metrics.totalRequests > 0 
+                    ? Math.round(this.metrics.totalLatency / this.metrics.totalRequests) 
+                    : 0;
+                document.getElementById('avgLatency').textContent = avgLatency + 'ms';
+                
+                const avgChunks = this.metrics.totalChunks > 0 && this.metrics.totalRequests > 0 
+                    ? (this.metrics.totalChunks / this.metrics.totalRequests).toFixed(1) 
+                    : 0;
+                document.getElementById('avgChunks').textContent = avgChunks;
+            }
+
+            resetMetrics() {
+                this.metrics = {
+                    activeSessions: 0,
+                    totalRequests: 0,
+                    successfulRequests: 0,
+                    totalChars: 0,
+                    totalChunks: 0,
+                    totalLatency: 0
+                };
+                
+                this.timeSeriesData = {
+                    labels: [],
+                    activeSessions: [],
+                    totalRequests: [],
+                    successRate: [],
+                    charsPerSecond: []
+                };
+                
+                this.updateMetricsDisplay();
+                this.charts.resetCharts();
+            }
+
+            updateDistributionData() {
+                // Count session statuses
+                const statusCounts = {
+                    success: this.metrics.successfulRequests,
+                    failed: this.metrics.totalRequests - this.metrics.successfulRequests,
+                    idle: this.sessions.filter(s => s.status === 'idle').length
+                };
+                
+                // Update distribution chart
+                this.charts.updateDistributionChart(statusCounts);
+            }
+
+            updatePerSessionData() {
+                // Collect per session data
+                const sessionData = this.sessions.map(session => {
+                    return {
+                        id: session.id,
+                        latency: session.latency,
+                        chars: session.chars,
+                        chunks: session.chunks,
+                        status: session.status
+                    };
+                });
+                
+                // Update per session chart
+                this.charts.updatePerSessionChart(sessionData);
+            }
+
+            updateDetailCharts() {
+                // Get data for selected session (for demo, use the first active session)
+                const activeSessions = this.sessions.filter(s => s.status === 'active' || s.status === 'completed');
+                if (activeSessions.length > 0) {
+                    const selectedSession = activeSessions[0];
+                    
+                    // Update latency per chunk chart
+                    this.charts.updateLatencyPerChunkChart(selectedSession.chunkLatencies);
+                    
+                    // Update latency histogram
+                    this.charts.updateLatencyHistogramChart(this.sessions.map(s => s.latency).filter(l => l > 0));
+                }
+            }
+
+            log(level, message) {
+                const logOutput = document.getElementById('logOutput');
+                const now = new Date();
+                const timeString = now.toTimeString().split(' ')[0];
+                
+                let className = 'log-info';
+                if (level === 'warning') className = 'log-warning';
+                if (level === 'error') className = 'log-error';
+                if (level === 'success') className = 'log-success';
+                
+                const logEntry = document.createElement('div');
+                logEntry.className = 'log-entry';
+                logEntry.innerHTML = `
+                    <span class="log-time">[${timeString}]</span>
+                    <span class="${className}">${message}</span>
+                `;
+                
+                logOutput.appendChild(logEntry);
+                logOutput.scrollTop = logOutput.scrollHeight;
+                
+                // Also print to console
+                console.log(`[${timeString}] [${level.toUpperCase()}] ${message}`);
+            }
+
+            showToast(message, type = 'info') {
+                // Create toast container if it doesn't exist
+                let toastContainer = document.querySelector('.toast-container');
+                if (!toastContainer) {
+                    toastContainer = document.createElement('div');
+                    toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+                    document.body.appendChild(toastContainer);
+                }
+                
+                // Create toast
+                const toastId = 'toast-' + Date.now();
+                const toast = document.createElement('div');
+                toast.className = `toast align-items-center text-white bg-${type} border-0`;
+                toast.id = toastId;
+                toast.setAttribute('role', 'alert');
+                toast.setAttribute('aria-live', 'assertive');
+                toast.setAttribute('aria-atomic', 'true');
+                
+                toast.innerHTML = `
+                    <div class="d-flex">
+                        <div class="toast-body">
+                            ${message}
+                        </div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                `;
+                
+                toastContainer.appendChild(toast);
+                
+                // Initialize and show toast
+                const bsToast = new bootstrap.Toast(toast, { autohide: true, delay: 3000 });
+                bsToast.show();
+                
+                // Remove toast after it's hidden
+                toast.addEventListener('hidden.bs.toast', () => {
+                    toast.remove();
+                });
+            }
+        }
+
+        // Session Class
+        class Session {
+            constructor(id, number, config, monitor) {
+                this.id = id;
+                this.number = number;
+                this.config = config;
+                this.monitor = monitor;
+                this.status = 'idle'; // idle, active, completed, failed
+                this.chars = 0;
+                this.chunks = 0;
+                this.latency = 0;
+                this.chunkLatencies = [];
+                this.response = '';
+                this.lastUpdate = 0;
+                this.requestTimeout = null;
+                this.retryCount = 0;
+                this.streamController = null;
+            }
+
+            start() {
+                this.status = 'idle';
+                this.updateUI();
+            }
+
+            startRequest() {
+                if (this.status !== 'idle') return;
+                
+                this.status = 'active';
+                this.chars = 0;
+                this.chunks = 0;
+                this.latency = 0;
+                this.chunkLatencies = [];
+                this.response = '';
+                this.retryCount = 0;
+                this.lastUpdate = Date.now();
+                
+                this.monitor.log('info', `Starting session ${this.number} request`);
+                
+                this.fetchData();
+                this.updateUI();
+            }
+
+            fetchData() {
+                // Clear any existing timeout
+                if (this.requestTimeout) {
+                    clearTimeout(this.requestTimeout);
+                }
+                
+                // Build request options
+                const options = {
+                    method: this.config.requestMethod,
+                    headers: {}
+                };
+                
+                // Add auth if needed
+                if (this.config.authType === 'bearer' && this.config.bearerToken) {
+                    options.headers['Authorization'] = `Bearer ${this.config.bearerToken}`;
+                }
+                
+                // Add body for POST/PUT requests
+                if (['POST', 'PUT'].includes(this.config.requestMethod)) {
+                    options.headers['Content-Type'] = 'application/json';
+                    options.body = JSON.stringify({
+                        prompt: "Generate some text for testing API throughput",
+                        max_tokens: 100
+                    });
+                }
+                
+                // Start request
+                this.startTime = Date.now();
+                
+                // Simulate streaming response for demo purposes
+                // In a real application, you would use fetch with ReadableStream
+                this.simulateStreamingResponse();
+            }
+
+            simulateStreamingResponse() {
+                // Simulate streaming response with random chunks
+                this.status = 'active';
+                this.updateUI();
+                
+                const simulateChunk = () => {
+                    if (!this.isRunning) {
+                        this.status = 'failed';
+                        this.monitor.log('error', `Session ${this.number} failed: Monitoring stopped`);
+                        this.updateUI();
+                        return;
+                    }
+                    
+                    if (this.retryCount >= this.config.retryAttempts) {
+                        this.status = 'failed';
+                        this.monitor.log('error', `Session ${this.number} failed after ${this.retryCount} retries`);
+                        this.updateUI();
+                        return;
+                    }
+                    
+                    // Simulate chunk processing time (10-100ms)
+                    const chunkLatency = Math.floor(Math.random() * 90) + 10;
+                    this.chunkLatencies.push(chunkLatency);
+                    
+                    // Simulate chunk data
+                    const chunkSize = Math.floor(Math.random() * 50) + 10; // 10-60 chars
+                    const chunkData = ' '.repeat(chunkSize); // Simulate text data
+                    
+                    // Update session data
+                    this.chars += chunkSize;
+                    this.chunks++;
+                    this.response += chunkData;
+                    
+                    // Update latency
+                    this.latency = Date.now() - this.startTime;
+                    
+                    // Update monitor metrics
+                    this.monitor.metrics.totalChars += chunkSize;
+                    this.monitor.metrics.totalChunks++;
+                    this.monitor.metrics.totalLatency += chunkLatency;
+                    
+                    // Update UI
+                    this.updateUI();
+                    
+                    // Schedule next chunk
+                    setTimeout(simulateChunk, chunkLatency);
+                };
+                
+                // Start simulation
+                simulateChunk();
+                
+                // Simulate completion after random time (5-10 chunks)
+                const completionTime = Math.floor(Math.random() * 5000) + 5000; // 5-10 seconds
+                setTimeout(() => {
+                    if (this.status === 'active') {
+                        this.status = 'completed';
+                        this.monitor.metrics.successfulRequests++;
+                        this.monitor.log('success', `Session ${this.number} completed successfully`);
+                        this.updateUI();
+                    }
+                }, completionTime);
+                
+                // Set timeout for request
+                this.requestTimeout = setTimeout(() => {
+                    if (this.status === 'active') {
+                        this.retryCount++;
+                        this.monitor.log('warning', `Session ${this.number} timed out, retrying (${this.retryCount}/${this.config.retryAttempts})`);
+                        this.fetchData();
+                    }
+                }, this.config.timeout);
+            }
+
+            stop() {
+                this.isRunning = false;
+                
+                // Cancel any ongoing request
+                if (this.requestTimeout) {
+                    clearTimeout(this.requestTimeout);
+                    this.requestTimeout = null;
+                }
+                
+                // Abort any streaming response
+                if (this.streamController) {
+                    this.streamController.abort();
+                    this.streamController = null;
+                }
+                
+                // Reset status
+                this.status = 'idle';
+                this.updateUI();
+            }
+
+            updateUI() {
+                // Update session card UI
+                document.getElementById(`${this.id}-status`).textContent = this.status.charAt(0).toUpperCase() + this.status.slice(1);
+                document.getElementById(`${this.id}-status-text`).textContent = this.status.charAt(0).toUpperCase() + this.status.slice(1);
+                document.getElementById(`${this.id}-latency`).textContent = `${this.latency}ms`;
+                document.getElementById(`${this.id}-chars`).textContent = this.chars;
+                document.getElementById(`${this.id}-chunks`).textContent = this.chunks;
+                document.getElementById(`${this.id}-response`).textContent = this.response.length > 50 
+                    ? this.response.substring(0, 50) + '...' 
+                    : this.response;
+                
+                // Update status badge color
+                const statusBadge = document.getElementById(`${this.id}-status`);
+                statusBadge.className = 'badge';
+                if (this.status === 'active') {
+                    statusBadge.classList.add('bg-success');
+                } else if (this.status === 'completed') {
+                    statusBadge.classList.add('bg-primary');
+                } else if (this.status === 'failed') {
+                    statusBadge.classList.add('bg-danger');
+                } else {
+                    statusBadge.classList.add('bg-secondary');
+                }
+            }
+        }
+
+        // Dashboard Charts Class
+        class DashboardCharts {
+            constructor() {
+                this.charts = {};
+            }
+
+            initCharts() {
+                // Time Series Chart
+                this.charts.timeSeries = new Chart(
+                    document.getElementById('timeSeriesChart'),
+                    {
+                        type: 'line',
+                        data: {
+                            labels: [],
+                            datasets: [
+                                {
+                                    label: 'Active Sessions',
+                                    data: [],
+                                    borderColor: 'rgba(40, 167, 69, 1)',
+                                    backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                                    tension: 0.4,
+                                    fill: true
+                                },
+                                {
+                                    label: 'Total Requests',
+                                    data: [],
+                                    borderColor: 'rgba(0, 123, 255, 1)',
+                                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                                    tension: 0.4,
+                                    fill: true
+                                },
+                                {
+                                    label: 'Success Rate (%)',
+                                    data: [],
+                                    borderColor: 'rgba(255, 193, 7, 1)',
+                                    backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                                    tension: 0.4,
+                                    fill: true
+                                },
+                                {
+                                    label: 'Chars/sec',
+                                    data: [],
+                                    borderColor: 'rgba(220, 53, 69, 1)',
+                                    backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                                    tension: 0.4,
+                                    fill: true
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                title: {
+                                    display: true,
+                                    text: 'API Throughput Time Series'
+                                },
+                                tooltip: {
+                                    mode: 'index',
+                                    intersect: false
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true
+                                }
+                            }
+                        }
+                    }
+                );
+                
+                // Per Session Chart
+                this.charts.perSession = new Chart(
+                    document.getElementById('perSessionChart'),
+                    {
+                        type: 'bar',
+                        data: {
+                            labels: [],
+                            datasets: [
+                                {
+                                    label: 'Latency (ms)',
+                                    data: [],
+                                    backgroundColor: 'rgba(0, 123, 255, 0.7)'
+                                },
+                                {
+                                    label: 'Chars',
+                                    data: [],
+                                    backgroundColor: 'rgba(40, 167, 69, 0.7)'
+                                },
+                                {
+                                    label: 'Chunks',
+                                    data: [],
+                                    backgroundColor: 'rgba(255, 193, 7, 0.7)'
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                title: {
+                                    display: true,
+                                    text: 'Per Session Metrics'
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true
+                                }
+                            }
+                        }
+                    }
+                );
+                
+                // Distribution Chart
+                this.charts.distribution = new Chart(
+                    document.getElementById('distributionChart'),
+                    {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['Success', 'Failed', 'Idle'],
+                            datasets: [
+                                {
+                                    data: [0, 0, 0],
+                                    backgroundColor: [
+                                        'rgba(40, 167, 69, 0.7)',
+                                        'rgba(220, 53, 69, 0.7)',
+                                        'rgba(108, 117, 125, 0.7)'
+                                    ]
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                title: {
+                                    display: true,
+                                    text: 'Session Status Distribution'
+                                }
+                            }
+                        }
+                    }
+                );
+                
+                // Latency per Chunk Chart
+                this.charts.latencyPerChunk = new Chart(
+                    document.getElementById('latencyPerChunkChart'),
+                    {
+                        type: 'line',
+                        data: {
+                            labels: [],
+                            datasets: [
+                                {
+                                    label: 'Chunk Latency (ms)',
+                                    data: [],
+                                    borderColor: 'rgba(0, 123, 255, 1)',
+                                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                                    tension: 0.4,
+                                    fill: true
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                title: {
+                                    display: true,
+                                    text: 'Latency per Chunk'
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    title: {
+                                        display: true,
+                                        text: 'Latency (ms)'
+                                    }
+                                },
+                                x: {
+                                    title: {
+                                        display: true,
+                                        text: 'Chunk Number'
+                                    }
+                                }
+                            }
+                        }
+                    }
+                );
+                
+                // Latency Histogram Chart
+                this.charts.latencyHistogram = new Chart(
+                    document.getElementById('latencyHistogramChart'),
+                    {
+                        type: 'bar',
+                        data: {
+                            labels: [],
+                            datasets: [
+                                {
+                                    label: 'Session Count',
+                                    data: [],
+                                    backgroundColor: 'rgba(255, 193, 7, 0.7)'
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                title: {
+                                    display: true,
+                                    text: 'Latency Histogram'
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    title: {
+                                        display: true,
+                                        text: 'Session Count'
+                                    }
+                                },
+                                x: {
+                                    title: {
+                                        display: true,
+                                        text: 'Latency Range (ms)'
+                                    }
+                                }
+                            }
+                        }
+                    }
+                );
+            }
+
+            updateTimeSeriesChart(data) {
+                this.charts.timeSeries.data.labels = data.labels;
+                this.charts.timeSeries.data.datasets[0].data = data.activeSessions;
+                this.charts.timeSeries.data.datasets[1].data = data.totalRequests;
+                this.charts.timeSeries.data.datasets[2].data = data.successRate;
+                this.charts.timeSeries.data.datasets[3].data = data.charsPerSecond;
+                this.charts.timeSeries.update();
+            }
+
+            updatePerSessionChart(data) {
+                // Update labels and datasets
+                this.charts.perSession.data.labels = data.map(session => `Session ${session.id.split('-')[1]}`);
+                this.charts.perSession.data.datasets[0].data = data.map(session => session.latency);
+                this.charts.perSession.data.datasets[1].data = data.map(session => session.chars);
+                this.charts.perSession.data.datasets[2].data = data.map(session => session.chunks);
+                this.charts.perSession.update();
+            }
+
+            updateDistributionChart(data) {
+                this.charts.distribution.data.datasets[0].data = [data.success, data.failed, data.idle];
+                this.charts.distribution.update();
+            }
+
+            updateLatencyPerChunkChart(chunkLatencies) {
+                // Generate labels (chunk numbers)
+                const labels = chunkLatencies.map((_, index) => `Chunk ${index + 1}`);
+                
+                this.charts.latencyPerChunk.data.labels = labels;
+                this.charts.latencyPerChunk.data.datasets[0].data = chunkLatencies;
+                this.charts.latencyPerChunk.update();
+            }
+
+            updateLatencyHistogramChart(latencies) {
+                // Create histogram data
+                if (latencies.length === 0) return;
+                
+                // Determine bin size (e.g., 100ms bins)
+                const binSize = 100;
+                const maxLatency = Math.max(...latencies);
+                const numBins = Math.ceil(maxLatency / binSize);
+                
+                // Initialize bins
+                const bins = Array(numBins).fill(0);
+                const binLabels = [];
+                
+                // Create bin labels
+                for (let i = 0; i < numBins; i++) {
+                    const start = i * binSize;
+                    const end = (i + 1) * binSize;
+                    binLabels.push(`${start}-${end}ms`);
+                }
+                
+                // Count latencies in each bin
+                latencies.forEach(latency => {
+                    const binIndex = Math.min(Math.floor(latency / binSize), numBins - 1);
+                    bins[binIndex]++;
+                });
+                
+                // Update chart
+                this.charts.latencyHistogram.data.labels = binLabels;
+                this.charts.latencyHistogram.data.datasets[0].data = bins;
+                this.charts.latencyHistogram.update();
+            }
+
+            resetCharts() {
+                // Reset time series chart
+                this.charts.timeSeries.data.labels = [];
+                this.charts.timeSeries.data.datasets.forEach(dataset => {
+                    dataset.data = [];
+                });
+                this.charts.timeSeries.update();
+                
+                // Reset per session chart
+                this.charts.perSession.data.labels = [];
+                this.charts.perSession.data.datasets.forEach(dataset => {
+                    dataset.data = [];
+                });
+                this.charts.perSession.update();
+                
+                // Reset distribution chart
+                this.charts.distribution.data.datasets[0].data = [0, 0, 0];
+                this.charts.distribution.update();
+                
+                // Reset latency per chunk chart
+                this.charts.latencyPerChunk.data.labels = [];
+                this.charts.latencyPerChunk.data.datasets[0].data = [];
+                this.charts.latencyPerChunk.update();
+                
+                // Reset latency histogram chart
+                this.charts.latencyHistogram.data.labels = [];
+                this.charts.latencyHistogram.data.datasets[0].data = [];
+                this.charts.latencyHistogram.update();
+            }
+        }
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', () => {
+            window.monitor = new APIThroughputMonitor();
+        });
+    </script>
+</body>
+</html>

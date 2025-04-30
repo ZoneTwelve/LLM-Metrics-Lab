@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chart.js Dashboard Example</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            padding: 20px;
+        }
+        .card {
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .card-header {
+            background-color: #f1f3f5;
+            border-bottom: 1px solid #dee2e6;
+            font-weight: 600;
+        }
+        canvas { background: #fff; border-radius:6px }\n    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-bar-chart me-2"></i>
+                Dashboard Charts Example
+            </div>
+            <div class="card-body">
+                <ul class="nav nav-tabs" id="chartTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="time-series-tab" data-bs-toggle="tab" data-bs-target="#time-series" type="button" role="tab" aria-controls="time-series" aria-selected="true">Time Series Charts</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="per-session-tab" data-bs-toggle="tab" data-bs-target="#per-session" type="button" role="tab" aria-controls="per-session" aria-selected="false">Per Session Charts</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="distribution-tab" data-bs-toggle="tab" data-bs-target="#distribution" type="button" role="tab" aria-controls="distribution" aria-selected="false">Distribution Charts</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="detail-tab" data-bs-toggle="tab" data-bs-target="#detail" type="button" role="tab" aria-controls="detail" aria-selected="false">Per Session Detail</button>
+                    </li>
+                </ul>
+                <div class="tab-content pt-3" id="chartTabsContent">
+                    <!-- Time Series Charts -->
+                    <div class="tab-pane fade show active" id="time-series" role="tabpanel" aria-labelledby="time-series-tab">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                        <canvas id="activeSessionsOverTimeChart" height="150"></canvas>
+                        <div class="text-center text-muted small">Active Sessions Over Time</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                        <canvas id="totalRequestsOverTimeChart" height="150"></canvas>
+                        <div class="text-center text-muted small">Total Requests Over Time</div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                        <canvas id="successRateOverTimeChart" height="150"></canvas>
+                        <div class="text-center text-muted small">Success Rate Over Time</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                        <canvas id="charsPerSecondOverTimeChart" height="150"></canvas>
+                        <div class="text-center text-muted small">Chars Per Second Over Time</div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                        <canvas id="requestsPerSecondOverTimeChart" height="150"></canvas>
+                        <div class="text-center text-muted small">Requests Per Second Over Time</div>
+                        </div>
+                    </div>
+                    </div>
+                    <!-- Per Session Charts -->
+                    <div class="tab-pane fade" id="per-session" role="tabpanel" aria-labelledby="per-session-tab">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                        <canvas id="responseTimePerSessionChart" height="150"></canvas>
+                        <div class="text-center text-muted small">Response Time Per Session</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                        <canvas id="charsPerSessionChart" height="150"></canvas>
+                        <div class="text-center text-muted small">Chars Per Session</div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                        <canvas id="chunksPerSessionChart" height="150"></canvas>
+                        <div class="text-center text-muted small">Chunks Per Session</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                        <canvas id="avgLatencyPerSessionChart" height="150"></canvas>
+                        <div class="text-center text-muted small">Average Latency Per Session</div>
+                        </div>
+                    </div>
+                     <div class="row">
+                         <div class="col-md-8 mb-3">
+                             <canvas id="tokensPerSessionChart" height="180"></canvas>
+                             <div class="text-center text-muted small">Tokens (Prompt/Completion) Per Session</div>
+                         </div>
+                     </div>
+                    </div>
+                    <!-- Distribution Charts -->
+                    <div class="tab-pane fade" id="distribution" role="tabpanel" aria-labelledby="distribution-tab">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                        <canvas id="sessionStatusDistributionChart" height="180"></canvas>
+                        <div class="text-center text-muted small">Session Status Distribution</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                        <canvas id="successVsFailedChart" height="180"></canvas>
+                        <div class="text-center text-muted small">Success vs Failed Sessions</div>
+                        </div>
+                    </div>
+                    </div>
+                    <!-- Per Session Detail -->
+                    <div class="tab-pane fade" id="detail" role="tabpanel" aria-labelledby="detail-tab">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                        <canvas id="latencyPerChunkChart" height="150"></canvas>
+                        <div class="text-center text-muted small">Latency Per Chunk (Select Session)</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                        <canvas id="latencyHistogramChart" height="150"></canvas>
+                        <div class="text-center text-muted small">Latency Histogram (Select Session)</div>
+                        </div>
+                    </div>
+                    </div>
+                </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script>
+        // --- DashboardCharts Class ---
+        class DashboardCharts {
+            constructor() {
+                // Get canvas contexts
+                this.activeSessionsCtx = document.getElementById('activeSessionsOverTimeChart').getContext('2d');
+                this.totalRequestsCtx = document.getElementById('totalRequestsOverTimeChart').getContext('2d');
+                this.successRateCtx = document.getElementById('successRateOverTimeChart').getContext('2d');
+                this.charsPerSecondCtx = document.getElementById('charsPerSecondOverTimeChart').getContext('2d');
+                this.requestsPerSecondCtx = document.getElementById('requestsPerSecondOverTimeChart').getContext('2d');
+                this.responseTimePerSessionCtx = document.getElementById('responseTimePerSessionChart').getContext('2d');
+                this.charsPerSessionCtx = document.getElementById('charsPerSessionChart').getContext('2d');
+                this.chunksPerSessionCtx = document.getElementById('chunksPerSessionChart').getContext('2d');
+                this.avgLatencyPerSessionCtx = document.getElementById('avgLatencyPerSessionChart').getContext('2d');
+                this.tokensPerSessionCtx = document.getElementById('tokensPerSessionChart').getContext('2d');
+                this.sessionStatusDistributionCtx = document.getElementById('sessionStatusDistributionChart').getContext('2d');
+                this.successVsFailedCtx = document.getElementById('successVsFailedChart').getContext('2d');
+                this.latencyPerChunkCtx = document.getElementById('latencyPerChunkChart').getContext('2d');
+                this.latencyHistogramCtx = document.getElementById('latencyHistogramChart').getContext('2d');
+
+                // Chart instances
+                this.activeSessionsChart = null;
+                this.totalRequestsChart = null;
+                this.successRateChart = null;
+                this.charsPerSecondChart = null;
+                this.requestsPerSecondChart = null;
+                this.responseTimePerSessionChart = null;
+                this.charsPerSessionChart = null;
+                this.chunksPerSessionChart = null;
+                this.avgLatencyPerSessionChart = null;
+                this.tokensPerSessionChart = null;
+                this.sessionStatusDistributionChart = null;
+                this.successVsFailedChart = null;
+                this.latencyPerChunkChart = null;
+                this.latencyHistogramChart = null;
+            }
+
+            initializeCharts() {
+                // Destroy existing charts if they exist (useful for re-running)
+                if (this.activeSessionsChart) this.activeSessionsChart.destroy();
+                if (this.totalRequestsChart) this.totalRequestsChart.destroy();
+                if (this.successRateChart) this.successRateChart.destroy();
+                if (this.charsPerSecondChart) this.charsPerSecondChart.destroy();
+                if (this.requestsPerSecondChart) this.requestsPerSecondChart.destroy();
+                if (this.responseTimePerSessionChart) this.responseTimePerSessionChart.destroy();
+                if (this.charsPerSessionChart) this.charsPerSessionChart.destroy();
+                if (this.chunksPerSessionChart) this.chunksPerSessionChart.destroy();
+                if (this.avgLatencyPerSessionChart) this.avgLatencyPerSessionChart.destroy();
+                 if (this.tokensPerSessionChart) this.tokensPerSessionChart.destroy();
+                if (this.sessionStatusDistributionChart) this.sessionStatusDistributionChart.destroy();
+                if (this.successVsFailedChart) this.successVsFailedChart.destroy();
+                if (this.latencyPerChunkChart) this.latencyPerChunkChart.destroy();
+                if (this.latencyHistogramChart) this.latencyHistogramChart.destroy();
+
+
+                // Initialize Time Series Charts
+                this.activeSessionsChart = new Chart(this.activeSessionsCtx, {
+                    type: 'line',
+                    data: { labels: [], datasets: [{ label: 'Active Sessions', backgroundColor: '#0d6efd22', borderColor: '#0d6efd', data: [], fill: true, tension: 0.2 }] },
+                    options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { title: { display: true, text: 'Time (s)' } }, y: { beginAtZero: true, title: { display: true, text: '# Sessions' } } } }
+                });
+
+                this.totalRequestsChart = new Chart(this.totalRequestsCtx, {
+                    type: 'line',
+                    data: { labels: [], datasets: [{ label: 'Total Requests', backgroundColor: '#7e57c222', borderColor: '#7e57c2', data: [], fill: true, tension: 0.2 }] },
+                    options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { title: { display: true, text: 'Time (s)' } }, y: { beginAtZero: true, title: { display: true, text: '# Requests' } } } }
+                });
+
+                this.successRateChart = new Chart(this.successRateCtx, {
+                    type: 'line',
+                    data: { labels: [], datasets: [{ label: 'Success Rate (%)', backgroundColor: '#00cc9922', borderColor: '#00cc99', data: [], fill: true, tension: 0.18 }] },
+                    options: { responsive: true, scales: { y: { min: 0, max: 100, title: { display: true, text: '%' } }, x: { title: { display: true, text: 'Time (s)' } } }, plugins: { legend: { display: false } } }
+                });
+
+                this.charsPerSecondChart = new Chart(this.charsPerSecondCtx, {
+                    type: 'line',
+                    data: { labels: [], datasets: [{ label: 'Chars/sec', backgroundColor: '#fa983a22', borderColor: '#fa983a', data: [], fill: true, tension: 0.22 }] },
+                    options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { title: { display: true, text: 'Time (s)' } }, y: { beginAtZero: true, title: { display: true, text: 'Chars/s' } } } }
+                });
+
+                 this.requestsPerSecondChart = new Chart(this.requestsPerSecondCtx, {
+                    type: 'line',
+                    data: { labels: [], datasets: [{ label: 'Requests/sec', backgroundColor: '#34495e22', borderColor: '#34495e', data: [], fill: true, tension: 0.22 }] },
+                    options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { title: { display: true, text: 'Time (s)' } }, y: { beginAtZero: true, title: { display: true, text: 'Req/s' } } } }
+                });
+
+                // Initialize Per Session Charts (initially empty or placeholders)
+                this.responseTimePerSessionChart = new Chart(this.responseTimePerSessionCtx, {
+                    type: 'bar',
+                    data: { labels: [], datasets: [{ label: 'Response Time (s)', backgroundColor: '#48b6fa', data: [] }] },
+                    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Seconds' } } } }
+                });
+
+                this.charsPerSessionChart = new Chart(this.charsPerSessionCtx, {
+                    type: 'bar',
+                    data: { labels: [], datasets: [{ label: 'Characters', backgroundColor: '#f6c23e', data: [] }] },
+                    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Characters' } } } }
+                });
+
+                this.chunksPerSessionChart = new Chart(this.chunksPerSessionCtx, {
+                    type: 'bar',
+                    data: { labels: [], datasets: [{ label: 'Chunks', backgroundColor: '#9f86ff', data: [] }] },
+                    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, title: { display: true, text: '# Chunks' } } } }
+                });
+
+                this.avgLatencyPerSessionChart = new Chart(this.avgLatencyPerSessionCtx, {
+                    type: 'bar',
+                    data: { labels: [], datasets: [{ label: 'Average Latency (ms)', backgroundColor: '#46cdcf', data: [] }] },
+                    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'ms' } } } }
+                });
+
+                this.tokensPerSessionChart = new Chart(this.tokensPerSessionCtx, {
+                    type: 'bar',
+                    data: { labels: [], datasets: [
+                        { label: "Prompt Tokens", backgroundColor: '#48b6fa88', data: [] },
+                        { label: "Completion Tokens", backgroundColor: '#fa983a88', data: [] }
+                    ]},
+                    options: { responsive: true, plugins: {}, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, title: { display: true, text: 'Tokens' } } } }
+                });
+
+
+                // Initialize Distribution Charts (initially empty or placeholders)
+                 this.sessionStatusDistributionChart = new Chart(this.sessionStatusDistributionCtx, {
+                    type: 'pie',
+                    data: { labels: ['Starting', 'Processing', 'Completed', 'Failed'], datasets: [{ data: [0, 0, 0, 0], backgroundColor: ['#ffe066', '#74c0fc', '#51cf66', '#ff6b6b'] }] },
+                    options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+                });
+
+                this.successVsFailedChart = new Chart(this.successVsFailedCtx, {
+                    type: 'pie',
+                    data: { labels: ['Success', 'Failed'], datasets: [{ data: [0, 0], backgroundColor: ['#51cf66', '#ff6b6b'] }] },
+                    options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+                });
+
+                // Initialize Per Session Detail Charts (will require session selection logic later)
+                this.latencyPerChunkChart = new Chart(this.latencyPerChunkCtx, {
+                    type: 'line',
+                    data: { labels: [], datasets: [{ label: 'Latency per chunk (ms)', backgroundColor: '#38a3a522', borderColor: '#38a3a5', data: [], fill: true, tension: 0.2 }] },
+                    options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { title: { display: true, text: 'Chunk #' } }, y: { beginAtZero: true, title: { display: true, text: 'ms' } } } }
+                });
+
+                this.latencyHistogramChart = new Chart(this.latencyHistogramCtx, {
+                    type: 'bar',
+                    data: { labels: ['0-50', '50-100', '100-150', '150-200', '200-250', '>250'], datasets: [{ label: 'Chunks', backgroundColor: '#fa983a', data: [0, 0, 0, 0, 0, 0] }] }, // Added >250 bucket
+                    options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { title: { display: true, text: 'Latency (ms)' } }, y: { beginAtZero: true, title: { display: true, text: '# Chunks' } } } }
+                });
+            }
+
+            /**
+             * Updates all charts with the latest monitoring data.
+             * @param {object} data - An object containing all necessary stats.
+             * @param {string[]} data.timeLabels - Array of time labels for time series charts.
+             * @param {number[]} data.activeSessionsHistory - Array of active sessions counts over time.
+             * @param {number[]} data.totalRequestsHistory - Array of total requests counts over time.
+             * @param {number[]} data.successRateHistory - Array of success rates over time.
+             * @param {number[]} data.charsPerSecondHistory - Array of chars per second over time.
+             * @param {number[]} data.requestsPerSecondHistory - Array of requests per second over time.
+             * @param {object[]} data.allSessions - Array of Session objects or session stats objects.
+             * @param {object} [data.selectedSessionStats] - Stats for a specific session for detail charts.
+             */
+            updateCharts(data) {
+                // --- Time Series Charts ---
+                this.updateTimeSeriesChart(this.activeSessionsChart, data.timeLabels, data.activeSessionsHistory);
+                this.updateTimeSeriesChart(this.totalRequestsChart, data.timeLabels, data.totalRequestsHistory);
+                this.updateTimeSeriesChart(this.successRateChart, data.timeLabels, data.successRateHistory);
+                this.updateTimeSeriesChart(this.charsPerSecondChart, data.timeLabels, data.charsPerSecondHistory);
+                 this.updateTimeSeriesChart(this.requestsPerSecondChart, data.timeLabels, data.requestsPerSecondHistory);
+
+
+                // --- Per Session Charts ---
+                this.updatePerSessionCharts(data.allSessions);
+
+                // --- Distribution Charts ---
+                this.updateDistributionCharts(data.allSessions);
+
+                // --- Per Session Detail Charts ---
+                // This part requires logic to select a session.
+                // For now, let's just update them if selectedSessionStats is provided.
+                if (data.selectedSessionStats) {
+                    this.updateSessionDetailCharts(data.selectedSessionStats);
+                } else {
+                    // Optionally clear or show placeholder for detail charts if no session is selected
+                    this.clearSessionDetailCharts();
+                }
+            }
+
+            updateTimeSeriesChart(chart, labels, data) {
+                if (chart) {
+                    chart.data.labels = labels;
+                    chart.data.datasets[0].data = data;
+                    chart.update();
+                }
+            }
+
+            updatePerSessionCharts(sessions) {
+                if (!sessions || sessions.length === 0) {
+                    // Clear per-session charts if no sessions
+                    this.updateTimeSeriesChart(this.responseTimePerSessionChart, [], []);
+                    this.updateTimeSeriesChart(this.charsPerSessionChart, [], []);
+                    this.updateTimeSeriesChart(this.chunksPerSessionChart, [], []);
+                    this.updateTimeSeriesChart(this.avgLatencyPerSessionChart, [], []);
+                     if(this.tokensPerSessionChart) {
+                         this.tokensPerSessionChart.data.labels = [];
+                         this.tokensPerSessionChart.data.datasets[0].data = [];
+                         this.tokensPerSessionChart.data.datasets[1].data = [];
+                         this.tokensPerSessionChart.update();
+                     }
+                    return;
+                }
+
+                const sessionLabels = sessions.map(s => `Session ${s.id}`);
+                 // Assuming sessions have properties like responseTime, chars, chunks, avgLatency, promptTokens, completionTokens
+                 // In a real scenario, these might need to be calculated from raw session data
+                 const responseTimes = sessions.map(s => s.responseTime || 0); // Use 0 if not finished
+                 const chars = sessions.map(s => s.chars || 0);
+                 const chunks = sessions.map(s => s.chunks || 0);
+                 const avgLatencies = sessions.map(s => s.avgLatency || 0);
+                 const promptTokens = sessions.map(s => s.promptTokens || 0);
+                 const completionTokens = sessions.map(s => s.completionTokens || 0);
+
+
+                this.updateTimeSeriesChart(this.responseTimePerSessionChart, sessionLabels, responseTimes); // Using time series update for simplicity
+                this.updateTimeSeriesChart(this.charsPerSessionChart, sessionLabels, chars);
+                this.updateTimeSeriesChart(this.chunksPerSessionChart, sessionLabels, chunks);
+                this.updateTimeSeriesChart(this.avgLatencyPerSessionChart, sessionLabels, avgLatencies);
+
+                if(this.tokensPerSessionChart) {
+                    this.tokensPerSessionChart.data.labels = sessionLabels;
+                    this.tokensPerSessionChart.data.datasets[0].data = promptTokens;
+                    this.tokensPerSessionChart.data.datasets[1].data = completionTokens;
+                    this.tokensPerSessionChart.update();
+                }
+            }
+
+            updateDistributionCharts(sessions) {
+                if (!sessions || sessions.length === 0) {
+                     if(this.sessionStatusDistributionChart) {
+                        this.sessionStatusDistributionChart.data.datasets[0].data = [0, 0, 0, 0];
+                        this.sessionStatusDistributionChart.update();
+                     }
+                     if(this.successVsFailedChart) {
+                         this.successVsFailedChart.data.datasets[0].data = [0, 0];
+                         this.successVsFailedChart.update();
+                     }
+                    return;
+                }
+
+                // Assuming sessions have a 'status' property ('Starting', 'Processing', 'Completed', 'Failed')
+                const statusCounts = { 'Starting': 0, 'Processing': 0, 'Completed': 0, 'Failed': 0 };
+                sessions.forEach(s => {
+                    if (statusCounts.hasOwnProperty(s.status)) {
+                        statusCounts[s.status]++;
+                    }
+                });
+
+                const completedCount = statusCounts['Completed'];
+                const failedCount = statusCounts['Failed'];
+
+                if(this.sessionStatusDistributionChart) {
+                    this.sessionStatusDistributionChart.data.datasets[0].data = [
+                        statusCounts['Starting'],
+                        statusCounts['Processing'],
+                        completedCount,
+                        failedCount
+                    ];
+                    this.sessionStatusDistributionChart.update();
+                }
+
+                if(this.successVsFailedChart) {
+                    this.successVsFailedChart.data.datasets[0].data = [completedCount, failedCount];
+                    this.successVsFailedChart.update();
+                }
+            }
+
+            updateSessionDetailCharts(sessionStats) {
+                // Expects an object like { latencies: [...], ... }
+                if (!sessionStats || !sessionStats.latencies || sessionStats.latencies.length === 0) {
+                    this.clearSessionDetailCharts();
+                    return;
+                }
+
+                const chunkLabels = sessionStats.latencies.map((_, i) => i + 1);
+                const latencies = sessionStats.latencies;
+
+                this.updateTimeSeriesChart(this.latencyPerChunkChart, chunkLabels, latencies);
+
+                // Calculate histogram data
+                const histogramBins = [0, 50, 100, 150, 200, 250, Infinity]; // Bins in ms
+                const histogramCounts = new Array(histogramBins.length - 1).fill(0);
+                latencies.forEach(latency => {
+                    for (let i = 0; i < histogramBins.length - 1; i++) {
+                        if (latency >= histogramBins[i] && latency < histogramBins[i + 1]) {
+                            histogramCounts[i]++;
+                            break; // Found the bin
+                        }
+                    }
+                });
+
+                if (this.latencyHistogramChart) {
+                    this.latencyHistogramChart.data.labels = ['0-50', '50-100', '100-150', '150-200', '200-250', '>250'];
+                    this.latencyHistogramChart.data.datasets[0].data = histogramCounts;
+                    this.latencyHistogramChart.update();
+                }
+            }
+
+            clearSessionDetailCharts() {
+                 this.updateTimeSeriesChart(this.latencyPerChunkChart, [], []);
+                 if(this.latencyHistogramChart) {
+                    this.latencyHistogramChart.data.datasets[0].data = [0, 0, 0, 0, 0, 0];
+                    this.latencyHistogramChart.update();
+                 }
+            }
+
+             // Optional: Method to destroy all charts
+             destroyCharts() {
+                 if (this.activeSessionsChart) this.activeSessionsChart.destroy();
+                 if (this.totalRequestsChart) this.totalRequestsChart.destroy();
+                 if (this.successRateChart) this.successRateChart.destroy();
+                 if (this.charsPerSecondChart) this.charsPerSecondChart.destroy();
+                 if (this.requestsPerSecondChart) this.requestsPerSecondChart.destroy();
+                 if (this.responseTimePerSessionChart) this.responseTimePerSessionChart.destroy();
+                 if (this.charsPerSessionChart) this.charsPerSessionChart.destroy();
+                 if (this.chunksPerSessionChart) this.chunksPerSessionChart.destroy();
+                 if (this.avgLatencyPerSessionChart) this.avgLatencyPerSessionChart.destroy();
+                 if (this.tokensPerSessionChart) this.tokensPerSessionChart.destroy();
+                 if (this.sessionStatusDistributionChart) this.sessionStatusDistributionChart.destroy();
+                 if (this.successVsFailedChart) this.successVsFailedChart.destroy();
+                 if (this.latencyPerChunkChart) this.latencyPerChunkChart.destroy();
+                 if (this.latencyHistogramChart) this.latencyHistogramChart.destroy();
+             }
+        }
+
+        // --- Example Data Generation (for demonstration) ---
+        function randArr(n, min, max) { return Array(n).fill(0).map(_=>Math.round(Math.random()*(max-min)+min)); }
+        function linspace(n, start, stop) {
+            const arr = [];
+            for(let i=0;i<n;i++) arr.push((start + (stop - start)*i/(n-1)).toFixed(0));
+            return arr;
+        }
+        function percentArr(n, spread=0.12) {
+            let v=80, arr = [];
+            for(let i=0;i<n;i++) {
+                v += (Math.random()-0.5)*spread*100; arr.push(Math.max(65, Math.min(100, v)).toFixed(1));
+            }
+            return arr;
+        }
+
+        function generateExampleData(numTimePoints, numSessions) {
+             const timeLabels = linspace(numTimePoints, 0, numTimePoints * 5); // Time in seconds
+             const activeSessionsHistory = randArr(numTimePoints, 2, Math.floor(numSessions / 2));
+             const totalRequestsHistory = (function(){ let arr=[], total=0; for(let i=0;i<numTimePoints;i++){ total+=Math.round(Math.random()*5+3); arr.push(total);} return arr; })();
+             const successRateHistory = percentArr(numTimePoints);
+             const charsPerSecondHistory = randArr(numTimePoints, 50, 300);
+             const requestsPerSecondHistory = randArr(numTimePoints, 1, 8);
+
+             const allSessions = [];
+             const sessionStatuses = ['Completed', 'Failed', 'Starting', 'Processing'];
+             const sessionStatusDistribution = { 'Starting': 0, 'Processing': 0, 'Completed': 0, 'Failed': 0 };
+
+             for (let i = 0; i < numSessions; i++) {
+                 const status = sessionStatuses[Math.floor(Math.random() * sessionStatuses.length)];
+                 sessionStatusDistribution[status]++;
+
+                 const responseTime = status === 'Completed' || status === 'Failed' ? Math.random() * 15 + 1 : 0;
+                 const chars = status === 'Completed' || status === 'Failed' ? Math.random() * 800 + 200 : (status === 'Processing' ? Math.random() * 500 : 0);
+                 const chunks = status === 'Completed' || status === 'Failed' ? Math.random() * 20 + 5 : (status === 'Processing' ? Math.random() * 10 : 0);
+                 const latencies = status !== 'Starting' ? randArr(Math.round(chunks), 50, 400) : [];
+                 const avgLatency = latencies.length > 0 ? latencies.reduce((sum, l) => sum + l, 0) / latencies.length : 0;
+                 const promptTokens = Math.round(Math.random() * 150 + 50);
+                 const completionTokens = status === 'Completed' || status === 'Failed' ? Math.round(Math.random() * 250 + 100) : (status === 'Processing' ? Math.round(Math.random() * 150) : 0);
+
+
+                 allSessions.push({
+                     id: i,
+                     status: status,
+                     responseTime: responseTime,
+                     chars: chars,
+                     chunks: chunks,
+                     latencies: latencies,
+                     avgLatency: avgLatency,
+                     promptTokens: promptTokens,
+                     completionTokens: completionTokens,
+                 });
+             }
+
+            // Example selected session data (for detail charts) - pick a completed one if available
+             const completedSessions = allSessions.filter(s => s.status === 'Completed');
+             const selectedSessionStats = completedSessions.length > 0 ? completedSessions[0] : (allSessions.length > 0 ? allSessions[0] : null);
+
+
+             return {
+                 timeLabels: timeLabels,
+                 activeSessionsHistory: activeSessionsHistory,
+                 totalRequestsHistory: totalRequestsHistory,
+                 successRateHistory: successRateHistory,
+                 charsPerSecondHistory: charsPerSecondHistory,
+                 requestsPerSecondHistory: requestsPerSecondHistory,
+                 allSessions: allSessions,
+                 selectedSessionStats: selectedSessionStats // Pass data for one session
+             };
+        }
+
+
+        // --- Initialize and Update Charts on Page Load ---
+        document.addEventListener('DOMContentLoaded', function() {
+            const chartManager = new DashboardCharts();
+            chartManager.initializeCharts();
+
+            // Generate some example data
+            const exampleData = generateExampleData(30, 25); // 30 time points, 25 sessions
+
+            // Update the charts with the example data
+            chartManager.updateCharts(exampleData);
+
+            // Optional: Add a button to regenerate data and update charts
+            const regenerateButton = document.createElement('button');
+            regenerateButton.textContent = 'Regenerate Data';
+            regenerateButton.className = 'btn btn-secondary mt-3';
+             regenerateButton.style.float = 'right';
+            document.querySelector('.card-body').appendChild(regenerateButton);
+
+            regenerateButton.addEventListener('click', function() {
+                const newData = generateExampleData(30, 25 + Math.floor(Math.random() * 10)); // More sessions maybe
+                chartManager.updateCharts(newData);
+                console.log('Charts updated with new example data.');
+            });
+        });
+    </script>
+
+</body>
+</html>
