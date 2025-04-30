@@ -427,7 +427,7 @@
                             <div class="col-md-3 mb-3">
                                 <div class="card h-100">
                                     <div class="card-body text-center">
-                                        <h6 class="card-title text-muted">Chars Per Second</h6>
+                                        <h6 class="card-title text-muted">Avg Chars Per Second</h6>
                                         <h2 id="chars-per-second" class="mb-0">0</h2>
                                     </div>
                                 </div>
@@ -1051,10 +1051,13 @@
             isRunning = true;
             let model = document.getElementById('model').value || 'Not specified'
             let api_url = document.getElementById('api-url').value || 'https://api.openai.com/v1)'
-            let api_key = document.getElementById('api-key').value || '';
+            let api_key = document.getElementById('api-key').value || ''
             let max_concurrent = parseInt(document.getElementById('max-concurrent').value) // TODO: value check
             let time_limit = parseInt(document.getElementById('time-limit').value)
             let datasets = document.getElementById('dataset-name').value
+            let template_type = document.getElementById('template-type').value
+            let conversation_str = template_type === "conversation" ? document.getElementById('conversation').value : ''
+            let template_str = template_type === "template" ? document.getElementById('template').value : ''
             // TODO: replace this creation with WebSocket connection info.
 
             // const sessionGrid = document.getElementById('sessions-grid');
@@ -1077,7 +1080,8 @@
                     max_concurrent: parseInt(document.getElementById('max-concurrent').value),
                     time_limit: parseInt(document.getElementById('time-limit').value),
                     dataset: document.getElementById('dataset-name').value,
-                    template: document.getElementById('template').value
+                    template: template_str,
+                    conversation: conversation_str,
                 }
             };
             if (ws && ws.readyState === WebSocket.OPEN) {

@@ -37,7 +37,7 @@ class Conversation(str):
 
 load_dotenv()
 
-runtime_uuid = str(uuid.uuid4()).replace("-", "")
+runtime_uuid = None
 
 # Suppress SSL warnings
 urllib3.disable_warnings(InsecureRequestWarning)
@@ -472,7 +472,10 @@ def load_dataset_as_questions(dataset_name: str, key: Template | Conversation):
     elif isinstance(key, Conversation):
         for row in dataset:
             try:
-                messages = json.loads(row[key])
+                if isinstance(row[key], dict) or isinstance(row[key], list):
+                    messages = row[key]
+                else:
+                    messages = json.loads(row[key])
                 for turn in messages:
                     if 'role' in turn and 'content' in turn and isinstance(turn['role'], str) and isinstance(turn['content'], str):
                         ret.append(messages)
@@ -499,6 +502,7 @@ async def websocket_handler(websocket):
 
             # 處理 "start" 命令
             if data.get("command") == "start":
+                runtime_uuid = str(uuid.uuid4()).replace("-", "")
                 if monitor and monitor.running:
                     await websocket.send(json.dumps({"status": "error", "message": "Monitor already running"}))
                     logger.info(f"Monitor already running: {monitor.sessions}")
@@ -508,8 +512,10 @@ async def websocket_handler(websocket):
                     api_url = normalize_url(params.get('api_url', os.environ.get('API_URL')))
                     max_concurrent = int(params.get('max_concurrent', 5))
                     columns = int(params.get('columns', 3))
-                    log_file = params.get('log_file', "api_monitor.jsonl")
-                    plot_file = params.get('plot_file', "api_metrics.png")
+                    # log_file = params.get('log_file', "api_monitor.jsonl")
+                    # plot_file = params.get('plot_file', "api_metrics.png")
+                    log_file = f"{runtime_uuid}.jsonl"
+                    plot_file = f"{runtime_uuid}.png"
                     # output_dir = params.get('output_dir') # Dangerous, this might cause security issues like overwriting files or directories discovery
                     time_limit = int(params.get('time_limit', 10))
                     dataset_name = params.get('dataset', "tatsu-lab/alpaca") # Dangours, use with caution
@@ -528,9 +534,10 @@ async def websocket_handler(websocket):
                     api_key = os.environ.get('OPENAI_API_KEY')
                     
                     # Load dataset
-                    if template_str is not None:
+                    logger.info(f"Loading dataset '{dataset_name}' with template '{template_str}' or conversation '{conversation_str}'")
+                    if template_str is not None and template_str != "":
                         questions = load_dataset_as_questions(dataset_name, Template(template_str))
-                    elif conversation_str is not None:
+                    elif conversation_str is not None and conversation_str != "":
                         questions = load_dataset_as_questions(dataset_name, Conversation(conversation_str))
                     else:
                         await websocket.send(json.dumps({"status": "error", "message": "Either template or conversation must be provided"}))
@@ -538,7 +545,6 @@ async def websocket_handler(websocket):
                     
                     if monitor:
                         await monitor.stop_monitor()
-                        
                     monitor = APIThroughputMonitor(
                         model=model,
                         api_url=api_url,
